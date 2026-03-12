@@ -2,6 +2,8 @@
 
 Analyseur de logs Apache/Nginx en Python 3. Fichier unique, zero dependance, deploiement instantane.
 
+![an4log demo](demo.gif)
+
 ## Installation
 
 ```bash
