@@ -1,5 +1,15 @@
-*
-!an4log
-!README.md
-!.gitignore
-!demo.gif
+# Binaires
+an4log
+an4log-static
+
+# Logs et rapports
+*.log
+*.html
+apache/
+
+# Divers
+__pycache__/
+.claude/
+
+# Garder le dossier old
+!old/
