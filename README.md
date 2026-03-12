@@ -1,22 +1,35 @@
 # an4log v3.0.0
 
-Analyseur de logs Apache/Nginx en Python 3. Fichier unique, zero dependance, deploiement instantane.
+Analyseur de logs Apache/Nginx. Binaire unique statique, zero dependance, deploiement instantane.
 
 ![an4log demo](demo.gif)
 
 ## Installation
 
 ```bash
-# Copier sur le serveur
-sudo curl -o /usr/local/bin/an4log https://raw.githubusercontent.com/mabt/an4log/master/an4log
-sudo chmod +x /usr/local/bin/an4log
+# Linux x86_64
+curl -Lo /usr/local/bin/an4log https://github.com/mabt/an4log/releases/latest/download/an4log-linux-amd64
+chmod +x /usr/local/bin/an4log
+
+# Linux ARM64 (Raspberry Pi, Oracle ARM...)
+curl -Lo /usr/local/bin/an4log https://github.com/mabt/an4log/releases/latest/download/an4log-linux-arm64
+chmod +x /usr/local/bin/an4log
+
+# macOS Apple Silicon
+curl -Lo /usr/local/bin/an4log https://github.com/mabt/an4log/releases/latest/download/an4log-darwin-arm64
+chmod +x /usr/local/bin/an4log
 
 # GeoIP (optionnel, pour le classement par pays)
-pip3 install geoip2
 an4log setup-geoip
 ```
 
-Compatible Debian 10/11/12, Ubuntu 18+, RHEL 8+ — tout systeme avec Python 3.6+.
+### Compiler depuis les sources
+
+```bash
+git clone https://github.com/mabt/an4log.git
+cd an4log
+CGO_ENABLED=0 go build -ldflags '-s -w' -o an4log .
+```
 
 ## Utilisation
 
@@ -31,40 +44,26 @@ an4log -d /var/log/nginx/*access*.log
 an4log -d access.log -n 20 status
 
 # Menaces de la derniere heure
-an4log -d access.log --since 1h threat
+an4log -d access.log -since 1h threat
 
 # Profiler une IP
-an4log --ip 1.2.3.4 -d access.log
+an4log -ip 1.2.3.4 -d access.log
 
-# Stats par jour
-an4log -d access*.log --group-by day
-
-# Stats par mois
-an4log -d access*.log --group-by month
+# Stats par jour / mois
+an4log -d access*.log -group-by day
+an4log -d access*.log -group-by month
 
 # Rapport HTML interactif
-an4log -d access.log --html rapport.html
+an4log -d access.log -html rapport.html
 
 # Suggestions de blocage (iptables/fail2ban/ipset)
 an4log -d access.log actions
 
 # IPs brutes pour pipe vers iptables/ipset
-an4log -d access.log actions --output-ips
+an4log -d access.log actions -output-ips
 
 # Exclure les bots
-an4log -d access.log --exclude-bots
-
-# Dashboard rapide
-an4log -d access.log summary
-
-# Classification du trafic (humain, paiement, bots...)
-an4log -d access.log classify
-
-# Classement par pays
-an4log -d access.log countries
-
-# Installer la base GeoIP
-an4log setup-geoip
+an4log -d access.log -exclude-bots
 ```
 
 ## Commandes disponibles
@@ -86,7 +85,7 @@ an4log setup-geoip
 | `status` | Top codes HTTP |
 | `heavy` | Top IPs par volume transfere |
 | `methods` | Repartition des methodes HTTP |
-| `timeline` | Trafic par jour ou mois (avec `--group-by`) |
+| `timeline` | Trafic par jour ou mois (avec `-group-by`) |
 | `hour` | Repartition par heure |
 | `minute` | Pics de trafic par minute |
 | `slow` | Requetes les plus lentes |
@@ -119,15 +118,15 @@ an4log setup-geoip
 | `-g PATH` | Chemin base GeoLite2-Country.mmdb |
 | `-w FILE` | Fichier whitelist externe |
 | `-c FILE` | Fichier de configuration |
-| `--since` | Filtrer depuis: `30m`, `2h`, `1d`, `2026-03-09` |
-| `--ip` | Filtrer / profiler une IP |
-| `--group-by` | Grouper par `day` ou `month` |
-| `--html FILE` | Generer un rapport HTML interactif |
-| `--exclude-bots` | Exclure les bots connus |
-| `--output-ips` | Sortie IPs brutes (pour pipe) |
-| `--suspect-threshold N` | Seuil IPs suspectes (defaut: 500) |
-| `--ua-threshold N` | Seuil IPs sans UA (defaut: 50) |
-| `--burst-threshold N` | Seuil burst req/min (defaut: 30) |
+| `-since` | Filtrer depuis: `30m`, `2h`, `1d`, `2026-03-09` |
+| `-ip` | Filtrer / profiler une IP |
+| `-group-by` | Grouper par `day` ou `month` |
+| `-html FILE` | Generer un rapport HTML interactif |
+| `-exclude-bots` | Exclure les bots connus |
+| `-output-ips` | Sortie IPs brutes (pour pipe) |
+| `-suspect-threshold N` | Seuil IPs suspectes (defaut: 500) |
+| `-ua-threshold N` | Seuil IPs sans UA (defaut: 50) |
+| `-burst-threshold N` | Seuil burst req/min (defaut: 30) |
 
 ## Rapport HTML
 
@@ -171,7 +170,8 @@ geoip_db = /usr/share/GeoIP/GeoLite2-Country.mmdb
 
 ## Notes
 
+- Binaire statique ~6 MB, aucune dependance runtime
 - Les fichiers `*.error.log` sont automatiquement ignores
 - La whitelist fail2ban (`/etc/fail2ban/jail.d/whitelist-ips.conf`) est chargee automatiquement
 - Supporte les fichiers `.gz`
-- Parsing single-pass optimise (~0.5s pour 25K lignes)
+- Parsing single-pass optimise
