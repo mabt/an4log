@@ -75,50 +75,58 @@ an4log -d access.log -exclude-bots
 
 ## Commandes disponibles
 
-### Analyse generale
+### Vue d'ensemble
 | Commande | Description |
 |----------|-------------|
 | `all` | Toutes les analyses (defaut) |
 | `summary` | Dashboard rapide (stats + alertes) |
-| `classify` | Repartition du trafic par categorie |
+| `classify` | Repartition du trafic par categorie (humain, bots, paiement, monitoring, SEO, IA) |
 | `visitors` | Visiteurs uniques (IP + User-Agent) |
+| `timeline` | Trafic par jour ou mois (avec `-group-by`) |
 
-### Trafic
+### Top N (trafic)
 | Commande | Description |
 |----------|-------------|
 | `ip` | Top IPs par nombre de requetes |
-| `ua` | Top User-Agents |
 | `uri` | Top URIs (sans query string) |
-| `prefix` | Top prefixes IP (xxx.xxx.*) |
+| `ua` | Top User-Agents |
 | `status` | Top codes HTTP |
 | `heavy` | Top IPs par volume transfere |
 | `methods` | Repartition des methodes HTTP |
-| `timeline` | Trafic par jour ou mois (avec `-group-by`) |
+| `vhost` | Virtual hosts (auto-detecte) |
+| `countries` | Top pays par nombre de hits (GeoIP) |
+| `asn` | Top reseaux / ASN (OVH, AWS, Google...) |
+
+### Temporel
+| Commande | Description |
+|----------|-------------|
 | `hour` | Repartition par heure |
 | `minute` | Pics de trafic par minute |
 | `slow` | Requetes les plus lentes |
 | `response-time` | Temps de reponse par URI (p50, p95, p99) |
-| `vhost` | Virtual hosts (auto-detecte) |
-| `404` | Top URIs en erreur 404 |
-| `403` | Top IPs bloquees (403) |
-| `crawlers` | Bots/crawlers detectes |
+
+### Comportement suspect
+| Commande | Description |
+|----------|-------------|
 | `suspect` | IPs suspectes (> seuil de requetes) |
-| `empty-ua` | Requetes sans User-Agent |
 | `burst` | Detection de burst par IP/minute |
 | `post-flood` | Flood de requetes POST par IP |
-| `countries` | Top pays par nombre de hits |
-| `asn` | Top reseaux / ASN (OVH, AWS, Google...) |
+| `empty-ua` | Requetes sans User-Agent |
+| `prefix` | Top prefixes IP (xxx.xxx.*) |
+| `crawlers` | Bots/crawlers detectes |
+| `404` | Top URIs en erreur 404 |
+| `403` | Top IPs bloquees (403) |
 
 ### Securite
 | Commande | Description |
 |----------|-------------|
 | `threat` | Vue combinee de toutes les menaces |
-| `actions` | Suggestions iptables / fail2ban / ipset |
+| `actions` | Suggestions iptables / fail2ban / ipset (score >= 10) |
 | `sql` | Tentatives d'injection SQL |
 | `xss` | Tentatives XSS |
-| `traversal` | Tentatives de path traversal |
+| `traversal` | Tentatives de path traversal (double `../` ou cible dangereuse) |
 | `scanners` | Detection de scanners (nikto, sqlmap...) |
-| `wp-attack` | Attaques WordPress |
+| `wp-attack` | Attaques WordPress (hors wp-cron) |
 
 ## Options
 
@@ -155,8 +163,9 @@ Le rapport HTML est autonome (CSS + JS inline) et inclut :
 
 ## Detection
 
-- **Menaces** : SQL injection, XSS, path traversal, WordPress, fichiers sensibles
+- **Menaces** : SQL injection, XSS, path traversal (double `../` ou cible sensible), WordPress (hors wp-cron), fichiers sensibles (`/.env`, `.git/HEAD`, `.htaccess`...)
 - **Scanners** : nikto, sqlmap, nmap, nuclei, wpscan...
+- **Seuil de ban** : seules les IPs avec un score >= 10 sont suggerees dans `actions` (evite les faux positifs sur un hit isole)
 - **Classification UA** : paiement (Lyra, PayPal, Stripe...), monitoring (Uptime-Kuma, Sansec...), bots legitimes (Google, Bing...), SEO, IA
 - **IPs protegees** : les IPs de paiement et monitoring ne sont jamais suggerees au ban
 - **ASN** : identification du reseau source (OVH, AWS, Google, Cloudflare...)

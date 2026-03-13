@@ -7,12 +7,12 @@ var threatPatterns = []ThreatPattern{
 		[]string{"union", "sleep(", "benchmark(", "information_schema", "load_file", "extractvalue", "outfile", "xp_cmd", "concat(0x"}},
 	{"XSS", regexp.MustCompile(`(?i)(<script|%3cscript|javascript:|onerror=|onload=|alert\(|prompt\(|document\.cookie)`),
 		[]string{"script", "javascript:", "onerror", "onload", "alert(", "prompt(", "document.cookie"}},
-	{"TRAVERSAL", regexp.MustCompile(`(?i)(\.\./|\.\.\\|%2e%2e|%252e)`),
+	{"TRAVERSAL", regexp.MustCompile(`(?i)(\.\./\.\./|%2e%2e/%2e%2e|%252e%252e|\.\./(etc|proc|var|tmp|boot|windows|usr|root|home|\.ssh|\.bash))`),
 		[]string{"..", "%2e", "%252e"}},
-	{"WP", regexp.MustCompile(`(?i)(wp-login\.php|xmlrpc\.php|wp-admin|wp-config|wp-content/uploads/.*\.php|eval-stdin\.php|wp-cron)`),
+	{"WP", regexp.MustCompile(`(?i)(wp-login\.php|xmlrpc\.php|wp-admin|wp-config|wp-content/uploads/.*\.php|eval-stdin\.php)`),
 		[]string{"wp-", "xmlrpc", "eval-stdin"}},
-	{"SENSITIVE", regexp.MustCompile(`(?i)(\.env|\.git/config|\.htaccess|\.svn/|\.hg/|phpinfo\.php|server-status|server-info)`),
-		[]string{".env", ".git/", ".htaccess", ".svn/", ".hg/", "phpinfo", "server-status", "server-info"}},
+	{"SENSITIVE", regexp.MustCompile(`(?i)(/\.env($|[.\?])|/\.git/(config|HEAD|index|objects|refs)|\.htaccess|/\.svn/|/\.hg/|phpinfo\.php|server-status|server-info)`),
+		[]string{"/.env", ".git/", ".htaccess", ".svn/", ".hg/", "phpinfo", "server-status", "server-info"}},
 }
 
 var scannerRE = regexp.MustCompile(`(?i)(nikto|sqlmap|nmap|masscan|dirbuster|gobuster|wfuzz|nuclei|acunetix|nessus|openvas|burpsuite|zap|w3af|whatweb|wpscan)`)

@@ -628,7 +628,10 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 	}
 	var attackIPs []scoredIP
 	for ip := range data.IPThreats {
-		attackIPs = append(attackIPs, scoredIP{ip, ipScore(ip, data, cfg)})
+		s := ipScore(ip, data, cfg)
+		if s >= 10 {
+			attackIPs = append(attackIPs, scoredIP{ip, s})
+		}
 	}
 	sort.Slice(attackIPs, func(i, j int) bool { return attackIPs[i].score > attackIPs[j].score })
 
