@@ -27,7 +27,15 @@ var uaClasses = []UAClass{
 }
 
 var paymentURIRE = regexp.MustCompile(`(?i)(checkout|payment|payzen|paypal|stripe|mollie|ipn|webhook|callback.*pay|/pay/|/order/|payment-information)`)
+
+// Standard Combined Log Format: IP - - [ts] "method uri proto" status size "ref" "ua"
 var logRE = regexp.MustCompile(`^(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+)[^"]*" (\d{3}) (\S+) "([^"]*)" "([^"]*)"`)
+
+// Combined with vhost prefix: vhost:port IP - - [ts] ...
+var vhostLogRE = regexp.MustCompile(`^(\S+?)(?::\d+)? (\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+)[^"]*" (\d{3}) (\S+) "([^"]*)" "([^"]*)"`)
+
+// Response time at end of line (µs or ms, Apache %D or Nginx $request_time)
+var responseTimeRE = regexp.MustCompile(`\s(\d+)$`)
 
 var threatScores = map[string]int{
 	"SQL": 10, "XSS": 10, "TRAVERSAL": 8, "SCAN": 8, "WP": 5, "SENSITIVE": 5,

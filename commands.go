@@ -815,6 +815,190 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 	fmt.Println("    iptables -A INPUT -m set --match-set an4log_blacklist src -j DROP")
 }
 
+func cmdVisitors(data *ParseData, cfg Cfg) {
+	header("Visiteurs uniques")
+	total := data.Total
+	unique := len(data.UniqueVisitors)
+	uniqueIPs := len(data.IPCounts)
+	fmt.Printf("  Requetes totales    : %s%s%s\n", cBold, fmtComma(total), cReset)
+	fmt.Printf("  IPs uniques         : %s%s%s\n", cBold, fmtComma(uniqueIPs), cReset)
+	fmt.Printf("  Visiteurs uniques   : %s%s%s  (IP + User-Agent)\n", cBold, fmtComma(unique), cReset)
+	if uniqueIPs > 0 {
+		ratio := float64(unique) / float64(uniqueIPs)
+		fmt.Printf("  Ratio visiteur/IP   : %.1f\n", ratio)
+	}
+
+	// Per-day unique visitors
+	if len(data.DayStats) > 1 {
+		fmt.Printf("\n  %sVisiteurs uniques par jour :%s\n", cBold, cReset)
+		// Rebuild per-day visitors from parsed data — use day+IP as approximation
+		type dayVisitors struct {
+			key  string
+			ips  int
+		}
+		var days []dayVisitors
+		for k, ds := range data.DayStats {
+			days = append(days, dayVisitors{k, len(ds.IPs)})
+		}
+		sort.Slice(days, func(i, j int) bool { return daySortKey(days[i].key).Before(daySortKey(days[j].key)) })
+		maxV := 0
+		for _, d := range days {
+			if d.ips > maxV {
+				maxV = d.ips
+			}
+		}
+		for _, d := range days {
+			bar := fmtBar(d.ips, maxV, 20)
+			fmt.Printf("    %s  %6s  %s\n", d.key, fmtComma(d.ips), bar)
+		}
+	}
+}
+
+func cmdVhost(data *ParseData, cfg Cfg) {
+	n := cfgInt(cfg, "top_n", 10)
+	header(fmt.Sprintf("Top %d Virtual Hosts", n))
+	if len(data.VhostCounts) == 0 {
+		fmt.Printf("  %sPas de virtual host detecte (format standard sans vhost)%s\n", cYellow, cReset)
+		return
+	}
+	items := topN(data.VhostCounts, n)
+	if len(items) == 0 {
+		return
+	}
+	maxVal := items[0].Val
+	for _, kv := range items {
+		ips := len(data.VhostIPs[kv.Key])
+		bytes := data.VhostBytes[kv.Key]
+		pct := fmtPct(kv.Val, data.Total)
+		bar := fmtBar(kv.Val, maxVal, 15)
+		fmt.Printf("  %10s  %s  %s  %s  %4d IPs  %s\n",
+			fmtComma(kv.Val), pct, bar, fmtSize(bytes), ips, kv.Key)
+	}
+}
+
+func percentile(sorted []int, p float64) int {
+	if len(sorted) == 0 {
+		return 0
+	}
+	idx := int(float64(len(sorted)-1) * p)
+	return sorted[idx]
+}
+
+func cmdResponseTime(data *ParseData, cfg Cfg) {
+	n := cfgInt(cfg, "top_n", 10)
+	header(fmt.Sprintf("Top %d URIs les plus lentes (temps de reponse)", n))
+
+	if len(data.URIResponseTime) == 0 {
+		fmt.Printf("  %sPas de donnees de temps de reponse dans les logs%s\n", cYellow, cReset)
+		fmt.Printf("  Apache: ajouter %%D en fin de LogFormat\n")
+		fmt.Printf("  Nginx:  ajouter $request_time en fin de log_format\n")
+		return
+	}
+
+	// Compute p50, p95, p99, avg per URI
+	type uriRT struct {
+		uri        string
+		avg, p50, p95, p99, count int
+	}
+	var items []uriRT
+	for uri, times := range data.URIResponseTime {
+		if len(times) < 3 {
+			continue
+		}
+		sort.Ints(times)
+		sum := 0
+		for _, t := range times {
+			sum += t
+		}
+		items = append(items, uriRT{
+			uri:   uri,
+			avg:   sum / len(times),
+			p50:   percentile(times, 0.5),
+			p95:   percentile(times, 0.95),
+			p99:   percentile(times, 0.99),
+			count: len(times),
+		})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].p95 > items[j].p95 })
+
+	if len(items) == 0 {
+		fmt.Printf("  %sInsuffisamment de donnees%s\n", cYellow, cReset)
+		return
+	}
+
+	fmt.Printf("  %6s  %10s  %10s  %10s  %10s  %s\n", "Hits", "Avg(µs)", "P50(µs)", "P95(µs)", "P99(µs)", "URI")
+	fmt.Printf("  %s  %s  %s  %s  %s  %s\n",
+		strings.Repeat("-", 6), strings.Repeat("-", 10), strings.Repeat("-", 10),
+		strings.Repeat("-", 10), strings.Repeat("-", 10), strings.Repeat("-", 30))
+
+	for i, it := range items {
+		if i >= n {
+			break
+		}
+		fmt.Printf("  %6s  %10s  %10s  %s%10s%s  %s%10s%s  %s\n",
+			fmtComma(it.count),
+			fmtComma(it.avg), fmtComma(it.p50),
+			cYellow, fmtComma(it.p95), cReset,
+			cRed, fmtComma(it.p99), cReset,
+			fmtKey(it.uri, 60))
+	}
+}
+
+func cmdASN(data *ParseData, cfg Cfg) {
+	n := cfgInt(cfg, "top_n", 10)
+	header(fmt.Sprintf("Top %d reseaux (ASN)", n))
+	dbPath := findASNDB()
+	if dbPath == "" {
+		warn("Base GeoLite2-ASN.mmdb introuvable")
+		fmt.Println("    an4log setup-geoip  (telecharge aussi la base ASN)")
+		return
+	}
+	db, err := maxminddb.Open(dbPath)
+	if err != nil {
+		warn(fmt.Sprintf("Erreur ouverture ASN: %v", err))
+		return
+	}
+	defer db.Close()
+
+	type asnResult struct {
+		ASN  uint   `maxminddb:"autonomous_system_number"`
+		Org  string `maxminddb:"autonomous_system_organization"`
+	}
+
+	asnHits := make(map[string]int)
+	asnIPs := make(map[string]int)
+	for ip, hits := range data.IPCounts {
+		pip := net.ParseIP(ip)
+		if pip == nil {
+			continue
+		}
+		var r asnResult
+		key := "??|Inconnu"
+		if err := db.Lookup(pip, &r); err == nil && r.ASN > 0 {
+			key = fmt.Sprintf("AS%d|%s", r.ASN, r.Org)
+		}
+		asnHits[key] += hits
+		asnIPs[key]++
+	}
+
+	items := topN(asnHits, n)
+	if len(items) == 0 {
+		return
+	}
+	maxVal := items[0].Val
+	fmt.Printf("  %10s  %5s  %6s  %s  %s\n", "Hits", "%", "IPs", "", "Reseau")
+	fmt.Println("  " + strings.Repeat("-", 80))
+	for _, kv := range items {
+		parts := strings.SplitN(kv.Key, "|", 2)
+		asn, org := parts[0], parts[1]
+		ips := asnIPs[kv.Key]
+		pct := fmtPct(kv.Val, data.Total)
+		bar := fmtBar(kv.Val, maxVal, 12)
+		fmt.Printf("  %10s  %s  %6s  %s  %s (%s)\n",
+			fmtComma(kv.Val), pct, fmtComma(ips), bar, org, asn)
+	}
+}
+
 func cmdAll(ctx *CmdCtx) {
 	data, cfg := ctx.Data, ctx.Cfg
 	cmdSummary(data, cfg)
@@ -829,10 +1013,24 @@ func cmdAll(ctx *CmdCtx) {
 	cmdStatus(data, cfg)
 	cmdHour(data, cfg)
 	cmdCountries(data, cfg)
+	if len(data.VhostCounts) > 0 {
+		cmdVhost(data, cfg)
+	}
+	if len(data.URIResponseTime) > 0 {
+		cmdResponseTime(data, cfg)
+	}
 	cmd404(data, cfg)
 	cmdCrawlers(data, cfg)
 	cmdSuspect(data, cfg)
 	cmdEmptyUA(data, cfg)
+	cmdVisitors(data, cfg)
+	cmdHeavy(data, cfg)
+	cmdMethods(data, cfg)
+	cmdMinute(data, cfg)
+	cmdSlow(data, cfg)
+	cmd403(data, cfg)
+	cmdBurst(data, cfg)
+	cmdASN(data, cfg)
 
 	// Security sections: compact empty ones
 	type secCmd struct {
@@ -847,16 +1045,6 @@ func cmdAll(ctx *CmdCtx) {
 		{cmdTraversal, "Traversal", len(data.ThreatIPs["TRAVERSAL"]) == 0},
 		{cmdWPAttack, "WordPress", len(data.ThreatIPs["WP"]) == 0},
 	}
-	// post-flood check
-	pfThresh := cfgInt(cfg, "post_flood_threshold", 200)
-	pfEmpty := true
-	for ip, c := range data.PostIPs {
-		if c > pfThresh && !isProtectedIP(ip, data) {
-			pfEmpty = false
-			break
-		}
-	}
-	secs = append(secs, secCmd{cmdPostFlood, "POST flood", pfEmpty})
 
 	var emptyLabels []string
 	for _, s := range secs {

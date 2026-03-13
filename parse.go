@@ -61,6 +61,9 @@ func computeCutoff(sinceStr string) (time.Time, bool) {
 }
 
 func openLog(path string) (io.ReadCloser, error) {
+	if path == "-" || path == "/dev/stdin" {
+		return io.NopCloser(os.Stdin), nil
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -92,9 +95,15 @@ func newParseData(groupBy string) *ParseData {
 		IPStatuses: make(map[string]map[int]int), IPBurst: make(map[string]map[string]int),
 		IPFirstSeen: make(map[string]time.Time), IPLastSeen: make(map[string]time.Time),
 		DayStats: make(map[string]*DayStat), GroupBy: groupBy,
-		// Profile structures initialized later if needed
 		IPUAs: make(map[string]map[string]bool), IPURIs: make(map[string]map[string]int),
 		IPMethods: make(map[string]map[string]int), IPHours: make(map[string]map[string]int),
+		UniqueVisitors:  make(map[string]bool),
+		VhostCounts:     make(map[string]int),
+		VhostIPs:        make(map[string]map[string]bool),
+		VhostBytes:      make(map[string]int64),
+		URIResponseTime: make(map[string][]int),
+		IPResponseTime:  make(map[string][]int),
+		ASNData:         make(map[string]string),
 	}
 }
 
@@ -117,6 +126,10 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 	botCount := 0
 	parseErrors := 0
 
+	// Auto-detect vhost format on first parseable line
+	hasVhost := false
+	vhostDetected := false
+
 	for fi, fpath := range files {
 		if showProgress {
 			fmt.Fprintf(os.Stderr, "\r  [%d/%d] %-40s", fi+1, len(files), filepath.Base(fpath))
@@ -131,21 +144,54 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 
 		for sc.Scan() {
 			line := sc.Text()
-			m := logRE.FindStringSubmatch(line)
-			if m == nil {
-				parseErrors++
-				continue
+
+			// Auto-detect vhost format on first line
+			if !vhostDetected {
+				if logRE.MatchString(line) {
+					hasVhost = false
+				} else if vhostLogRE.MatchString(line) {
+					hasVhost = true
+				}
+				vhostDetected = true
 			}
-			ip := m[1]
-			tsStr := m[2]
-			method := m[3]
-			uri := m[4]
-			status, _ := strconv.Atoi(m[5])
+
+			var ip, tsStr, method, uri, sizeStr, ua, vhost string
+			var statusInt int
+
+			if hasVhost {
+				m := vhostLogRE.FindStringSubmatch(line)
+				if m == nil {
+					parseErrors++
+					continue
+				}
+				vhost = m[1]
+				ip = m[2]
+				tsStr = m[3]
+				method = m[4]
+				uri = m[5]
+				statusInt, _ = strconv.Atoi(m[6])
+				sizeStr = m[7]
+				ua = m[9]
+			} else {
+				m := logRE.FindStringSubmatch(line)
+				if m == nil {
+					parseErrors++
+					continue
+				}
+				ip = m[1]
+				tsStr = m[2]
+				method = m[3]
+				uri = m[4]
+				statusInt, _ = strconv.Atoi(m[5])
+				sizeStr = m[6]
+				ua = m[8]
+			}
+
+			status := statusInt
 			size := int64(0)
-			if m[6] != "-" {
-				size, _ = strconv.ParseInt(m[6], 10, 64)
+			if sizeStr != "-" {
+				size, _ = strconv.ParseInt(sizeStr, 10, 64)
 			}
-			ua := m[8]
 
 			if filterIP != "" && ip != filterIP {
 				continue
@@ -205,6 +251,29 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 			data.StatusCounts[status]++
 			data.MethodCounts[method]++
 			data.IPBytes[ip] += size
+
+			// Unique visitors (IP+UA)
+			visitorKey := ip + "|" + ua
+			data.UniqueVisitors[visitorKey] = true
+
+			// Virtual host stats
+			if vhost != "" {
+				data.VhostCounts[vhost]++
+				data.VhostBytes[vhost] += size
+				ensureStringSet(data.VhostIPs, vhost)[ip] = true
+			}
+
+			// Response time (last numeric field on line, in µs)
+			if rtm := responseTimeRE.FindStringSubmatch(line); rtm != nil {
+				if rt, err := strconv.Atoi(rtm[1]); err == nil && rt > 0 {
+					cleanURI2 := uri
+					if idx := strings.IndexByte(uri, '?'); idx > 0 {
+						cleanURI2 = uri[:idx]
+					}
+					data.URIResponseTime[cleanURI2] = append(data.URIResponseTime[cleanURI2], rt)
+					data.IPResponseTime[ip] = append(data.IPResponseTime[ip], rt)
+				}
+			}
 
 			// URI (strip query)
 			cleanURI := uri

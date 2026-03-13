@@ -33,10 +33,11 @@ func run() int {
 	var topN int
 	var geoipDB, whitelistFile, configFile string
 	var since, filterIP, groupBy, htmlFile string
+	var jsonFile, csvFile string
 	var excludeBots, outputIPs, showVersion bool
 	var suspectThreshold, uaThreshold, burstThreshold int
 
-	flag.Var(&files, "d", "Fichier(s) log (glob ok, repeatable)")
+	flag.Var(&files, "d", "Fichier(s) log (glob ok, repeatable, - pour stdin)")
 	flag.IntVar(&topN, "n", 0, "Nombre de resultats (defaut: 10)")
 	flag.StringVar(&geoipDB, "g", "", "Chemin base GeoLite2-Country.mmdb")
 	flag.StringVar(&whitelistFile, "w", "", "Fichier whitelist externe")
@@ -47,6 +48,8 @@ func run() int {
 	flag.BoolVar(&outputIPs, "output-ips", false, "Sortie IPs brutes (pour pipe)")
 	flag.StringVar(&groupBy, "group-by", "", "Grouper par day ou month")
 	flag.StringVar(&htmlFile, "html", "", "Generer un rapport HTML")
+	flag.StringVar(&jsonFile, "json", "", "Exporter en JSON")
+	flag.StringVar(&csvFile, "csv", "", "Exporter en CSV")
 	flag.IntVar(&suspectThreshold, "suspect-threshold", 0, "Seuil IPs suspectes")
 	flag.IntVar(&uaThreshold, "ua-threshold", 0, "Seuil IPs sans UA")
 	flag.IntVar(&burstThreshold, "burst-threshold", 0, "Seuil burst req/min")
@@ -59,10 +62,11 @@ func run() int {
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, `
 Commandes:
-  all, summary, classify, ip, ua, uri, prefix, status, heavy, methods,
-  timeline, hour, minute, slow, 404, 403, crawlers, suspect, empty-ua,
-  burst, threat, actions, sql, xss, traversal, scanners, wp-attack,
-  post-flood, countries, setup-geoip
+  all, summary, classify, visitors, vhost, response-time, asn,
+  ip, ua, uri, prefix, status, heavy, methods, timeline, hour, minute,
+  slow, 404, 403, crawlers, suspect, empty-ua, burst, threat, actions,
+  sql, xss, traversal, scanners, wp-attack, post-flood, countries,
+  setup-geoip
 
 Exemples:
   an4log -d /var/log/apache2/access.log
@@ -71,6 +75,9 @@ Exemples:
   an4log -d access.log -ip 1.2.3.4
   an4log -d access.log actions -output-ips
   an4log -d access.log -html rapport.html
+  an4log -d access.log -json export.json
+  an4log -d access.log -csv export.csv
+  cat access.log | an4log -d - summary
   an4log -d access*.log -group-by day
 `)
 	}
@@ -85,13 +92,14 @@ Exemples:
 	// Parse remaining args for command and extra files
 	command := "all"
 	validCmds := map[string]bool{
-		"all": true, "summary": true, "classify": true, "ip": true, "ua": true,
-		"uri": true, "prefix": true, "status": true, "heavy": true, "methods": true,
-		"timeline": true, "hour": true, "minute": true, "slow": true, "404": true,
-		"403": true, "crawlers": true, "suspect": true, "empty-ua": true, "burst": true,
-		"threat": true, "actions": true, "sql": true, "xss": true, "traversal": true,
-		"scanners": true, "wp-attack": true, "post-flood": true, "countries": true,
-		"setup-geoip": true, "ip-profile": true,
+		"all": true, "summary": true, "classify": true, "visitors": true, "vhost": true,
+		"response-time": true, "asn": true,
+		"ip": true, "ua": true, "uri": true, "prefix": true, "status": true,
+		"heavy": true, "methods": true, "timeline": true, "hour": true, "minute": true,
+		"slow": true, "404": true, "403": true, "crawlers": true, "suspect": true,
+		"empty-ua": true, "burst": true, "threat": true, "actions": true, "sql": true,
+		"xss": true, "traversal": true, "scanners": true, "wp-attack": true,
+		"post-flood": true, "countries": true, "setup-geoip": true, "ip-profile": true,
 	}
 	remaining := flag.Args()
 	var extraFiles []string
@@ -143,16 +151,20 @@ Exemples:
 		return 2
 	}
 
-	// Resolve files
-	resolved := resolveFiles(files)
-	if len(resolved) == 0 {
-		fmt.Fprintf(os.Stderr, "%sErreur: aucun fichier log trouve%s\n", cRed, cReset)
-		return 2
-	}
-
-	// Validate format
-	if !validateFormat(resolved) {
-		return 2
+	// Resolve files (stdin = "-")
+	isStdin := len(files) == 1 && (files[0] == "-" || files[0] == "/dev/stdin")
+	var resolved []string
+	if isStdin {
+		resolved = []string{"-"}
+	} else {
+		resolved = resolveFiles(files)
+		if len(resolved) == 0 {
+			fmt.Fprintf(os.Stderr, "%sErreur: aucun fichier log trouve%s\n", cRed, cReset)
+			return 2
+		}
+		if !validateFormat(resolved) {
+			return 2
+		}
 	}
 
 	// Header
@@ -187,14 +199,20 @@ Exemples:
 
 	if !outputIPs {
 		var sizeBytes int64
-		for _, f := range resolved {
-			if info, err := os.Stat(f); err == nil {
-				sizeBytes += info.Size()
+		if !isStdin {
+			for _, f := range resolved {
+				if info, err := os.Stat(f); err == nil {
+					sizeBytes += info.Size()
+				}
 			}
+		}
+		sizeStr := fmtSize(sizeBytes)
+		if isStdin {
+			sizeStr = "stdin"
 		}
 		fmt.Printf("Lignes: %s%s%s | Taille: %s%s%s | Parse: %s%.2fs%s\n",
 			cBold, fmtComma(data.Total), cReset,
-			cBold, fmtSize(sizeBytes), cReset,
+			cBold, sizeStr, cReset,
 			cBold, elapsed, cReset)
 		if data.ParseErrors > 0 {
 			warn(fmt.Sprintf("%d ligne(s) non parsee(s)", data.ParseErrors))
@@ -251,6 +269,25 @@ Exemples:
 				return 1
 			}
 			return 0
+		}
+	}
+
+	// JSON export
+	if jsonFile != "" {
+		if err := writeExport(jsonFile, "json", data, cfg); err != nil {
+			warn(fmt.Sprintf("Erreur ecriture JSON: %v", err))
+		} else {
+			fmt.Printf("%sExport JSON: %s%s\n", cGreen, jsonFile, cReset)
+		}
+	}
+
+	// CSV export
+	if csvFile != "" {
+		ensureProfileData(data)
+		if err := writeExport(csvFile, "csv", data, cfg); err != nil {
+			warn(fmt.Sprintf("Erreur ecriture CSV: %v", err))
+		} else {
+			fmt.Printf("%sExport CSV: %s%s\n", cGreen, csvFile, cReset)
 		}
 	}
 
@@ -318,6 +355,14 @@ Exemples:
 		cmdPostFlood(data, cfg)
 	case "countries":
 		cmdCountries(data, cfg)
+	case "visitors":
+		cmdVisitors(data, cfg)
+	case "vhost":
+		cmdVhost(data, cfg)
+	case "response-time":
+		cmdResponseTime(data, cfg)
+	case "asn":
+		cmdASN(data, cfg)
 	case "ip-profile":
 		cmdIPProfile(data, cfg, filterIP)
 	default:
@@ -405,62 +450,68 @@ func resolveGeoIPFull(ipCounts map[string]int, dbPath string) map[string][2]stri
 
 // ── Setup GeoIP ──
 
-func cmdSetupGeoIP(cfg Cfg) {
-	defaultPath := filepath.Join(homeDir, "geoip", "GeoLite2-Country.mmdb")
-	if os.Getuid() == 0 {
-		defaultPath = "/usr/share/GeoIP/GeoLite2-Country.mmdb"
-	}
-	dbPath := cfgStr(cfg, "geoip_db", "")
-	if dbPath == "" {
-		dbPath = defaultPath
-	}
-	url := "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb"
-
-	header("Installation GeoLite2-Country.mmdb")
-
-	if info, err := os.Stat(dbPath); err == nil {
+func downloadDB(name, url, destPath string) bool {
+	if info, err := os.Stat(destPath); err == nil {
 		age := int(time.Since(info.ModTime()).Hours() / 24)
 		if age < 30 {
-			fmt.Printf("  %sBase deja presente: %s%s\n", cGreen, dbPath, cReset)
+			fmt.Printf("  %s%s deja presente: %s%s\n", cGreen, name, destPath, cReset)
 			fmt.Printf("  Mise a jour il y a %d jour(s)\n", age)
-			fmt.Printf("\n  Pour forcer: rm %s && an4log setup-geoip\n", dbPath)
-			return
+			return true
 		}
-		fmt.Printf("  %sBase > 30 jours, mise a jour...%s\n", cYellow, cReset)
+		fmt.Printf("  %s%s > 30 jours, mise a jour...%s\n", cYellow, name, cReset)
 	}
 
-	fmt.Printf("  Destination: %s\n", dbPath)
-	fmt.Printf("  Source: github.com/P3TERX/GeoLite.mmdb\n\n")
+	fmt.Printf("  Destination: %s\n", destPath)
+	fmt.Printf("  %sTelechargement %s...%s\n", cCyan, name, cReset)
 
-	os.MkdirAll(filepath.Dir(dbPath), 0755)
-
-	fmt.Printf("  %sTelechargement en cours...%s\n", cCyan, cReset)
+	os.MkdirAll(filepath.Dir(destPath), 0755)
 	resp, err := http.Get(url)
 	if err != nil {
 		warn(fmt.Sprintf("Echec du telechargement: %v", err))
-		return
+		return false
 	}
 	defer resp.Body.Close()
 
-	tmp := dbPath + ".tmp"
+	tmp := destPath + ".tmp"
 	f, err := os.Create(tmp)
 	if err != nil {
 		warn(fmt.Sprintf("Erreur creation fichier: %v", err))
-		return
+		return false
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
 		os.Remove(tmp)
 		warn(fmt.Sprintf("Erreur ecriture: %v", err))
-		return
+		return false
 	}
 	f.Close()
-	if err := os.Rename(tmp, dbPath); err != nil {
+	if err := os.Rename(tmp, destPath); err != nil {
 		os.Remove(tmp)
 		warn(fmt.Sprintf("Erreur rename: %v", err))
-		return
+		return false
 	}
 
-	info, _ := os.Stat(dbPath)
-	fmt.Printf("\n  %sOK%s - %s (%.1fM)\n", cGreen, cReset, dbPath, float64(info.Size())/1024/1024)
+	info, _ := os.Stat(destPath)
+	fmt.Printf("  %sOK%s - %s (%.1fM)\n", cGreen, cReset, destPath, float64(info.Size())/1024/1024)
+	return true
+}
+
+func cmdSetupGeoIP(cfg Cfg) {
+	baseDir := filepath.Join(homeDir, "geoip")
+	if os.Getuid() == 0 {
+		baseDir = "/usr/share/GeoIP"
+	}
+
+	header("Installation bases GeoIP")
+	fmt.Printf("  Source: github.com/P3TERX/GeoLite.mmdb\n\n")
+
+	countryPath := cfgStr(cfg, "geoip_db", "")
+	if countryPath == "" {
+		countryPath = filepath.Join(baseDir, "GeoLite2-Country.mmdb")
+	}
+	asnPath := filepath.Join(filepath.Dir(countryPath), "GeoLite2-ASN.mmdb")
+
+	downloadDB("GeoLite2-Country", "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb", countryPath)
+	fmt.Println()
+	downloadDB("GeoLite2-ASN", "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-ASN.mmdb", asnPath)
 }

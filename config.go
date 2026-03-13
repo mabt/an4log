@@ -40,10 +40,18 @@ var geoipSearchPaths = []string{
 	"/tmp/geoip/GeoLite2-Country.mmdb",
 }
 
+var asnSearchPaths = []string{
+	"/usr/share/GeoIP/GeoLite2-ASN.mmdb",
+	"/var/lib/GeoIP/GeoLite2-ASN.mmdb",
+	"/root/geoip/GeoLite2-ASN.mmdb",
+	"/tmp/geoip/GeoLite2-ASN.mmdb",
+}
+
 func init() {
 	if homeDir != "" {
 		configPaths = append(configPaths, filepath.Join(homeDir, ".an4log.conf"))
 		geoipSearchPaths = append(geoipSearchPaths, filepath.Join(homeDir, "geoip", "GeoLite2-Country.mmdb"))
+		asnSearchPaths = append(asnSearchPaths, filepath.Join(homeDir, "geoip", "GeoLite2-ASN.mmdb"))
 	}
 }
 
@@ -164,6 +172,15 @@ func findGeoIPDB(cfgPath string) string {
 		}
 	}
 	for _, p := range geoipSearchPaths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+func findASNDB() string {
+	for _, p := range asnSearchPaths {
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}

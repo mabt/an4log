@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var version = "3.0.0"
+var version = "3.1.0"
 
 // ── Data structures ──
 
@@ -44,9 +44,16 @@ type ParseData struct {
 	IPBurst      map[string]map[string]int
 	IPFirstSeen  map[string]time.Time
 	IPLastSeen   map[string]time.Time
-	SlowReqs     []SlowReq
-	DayStats     map[string]*DayStat
-	GroupBy      string
+	SlowReqs        []SlowReq
+	DayStats        map[string]*DayStat
+	GroupBy         string
+	UniqueVisitors  map[string]bool   // IP+UA combo for unique visitor counting
+	VhostCounts     map[string]int    // virtual host -> hits
+	VhostIPs        map[string]map[string]bool // vhost -> set of IPs
+	VhostBytes      map[string]int64  // vhost -> bytes
+	URIResponseTime map[string][]int  // URI -> response times (µs)
+	IPResponseTime  map[string][]int  // IP -> response times (µs)
+	ASNData         map[string]string // ip -> "AS1234 Name"
 }
 
 type DayStat struct {

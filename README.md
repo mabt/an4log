@@ -1,4 +1,4 @@
-# an4log v3.0.0
+# an4log v3.1.0
 
 Analyseur de logs Apache/Nginx. Binaire unique statique, zero dependance, deploiement instantane.
 
@@ -19,7 +19,7 @@ chmod +x /usr/local/bin/an4log
 curl -Lo /usr/local/bin/an4log https://github.com/mabt/an4log/releases/latest/download/an4log-darwin-arm64
 chmod +x /usr/local/bin/an4log
 
-# GeoIP (optionnel, pour le classement par pays)
+# GeoIP + ASN (optionnel, pour pays et reseaux)
 an4log setup-geoip
 ```
 
@@ -36,6 +36,9 @@ CGO_ENABLED=0 go build -ldflags '-s -w' -o an4log .
 ```bash
 # Analyse complete
 an4log -d /var/log/nginx/access.log
+
+# Depuis stdin (pipe)
+cat access.log | an4log -d - summary
 
 # Multi-fichiers (glob)
 an4log -d /var/log/nginx/*access*.log
@@ -56,6 +59,10 @@ an4log -d access*.log -group-by month
 # Rapport HTML interactif
 an4log -d access.log -html rapport.html
 
+# Export JSON / CSV
+an4log -d access.log -json export.json
+an4log -d access.log -csv export.csv
+
 # Suggestions de blocage (iptables/fail2ban/ipset)
 an4log -d access.log actions
 
@@ -74,6 +81,7 @@ an4log -d access.log -exclude-bots
 | `all` | Toutes les analyses (defaut) |
 | `summary` | Dashboard rapide (stats + alertes) |
 | `classify` | Repartition du trafic par categorie |
+| `visitors` | Visiteurs uniques (IP + User-Agent) |
 
 ### Trafic
 | Commande | Description |
@@ -89,6 +97,8 @@ an4log -d access.log -exclude-bots
 | `hour` | Repartition par heure |
 | `minute` | Pics de trafic par minute |
 | `slow` | Requetes les plus lentes |
+| `response-time` | Temps de reponse par URI (p50, p95, p99) |
+| `vhost` | Virtual hosts (auto-detecte) |
 | `404` | Top URIs en erreur 404 |
 | `403` | Top IPs bloquees (403) |
 | `crawlers` | Bots/crawlers detectes |
@@ -97,6 +107,7 @@ an4log -d access.log -exclude-bots
 | `burst` | Detection de burst par IP/minute |
 | `post-flood` | Flood de requetes POST par IP |
 | `countries` | Top pays par nombre de hits |
+| `asn` | Top reseaux / ASN (OVH, AWS, Google...) |
 
 ### Securite
 | Commande | Description |
@@ -113,7 +124,7 @@ an4log -d access.log -exclude-bots
 
 | Option | Description |
 |--------|-------------|
-| `-d FILE` | Fichier(s) log (glob ok, repeatable) |
+| `-d FILE` | Fichier(s) log (glob ok, repeatable, `-` pour stdin) |
 | `-n N` | Nombre de resultats (defaut: 10) |
 | `-g PATH` | Chemin base GeoLite2-Country.mmdb |
 | `-w FILE` | Fichier whitelist externe |
@@ -122,6 +133,8 @@ an4log -d access.log -exclude-bots
 | `-ip` | Filtrer / profiler une IP |
 | `-group-by` | Grouper par `day` ou `month` |
 | `-html FILE` | Generer un rapport HTML interactif |
+| `-json FILE` | Exporter en JSON |
+| `-csv FILE` | Exporter en CSV (une ligne par IP) |
 | `-exclude-bots` | Exclure les bots connus |
 | `-output-ips` | Sortie IPs brutes (pour pipe) |
 | `-suspect-threshold N` | Seuil IPs suspectes (defaut: 500) |
@@ -146,6 +159,7 @@ Le rapport HTML est autonome (CSS + JS inline) et inclut :
 - **Scanners** : nikto, sqlmap, nmap, nuclei, wpscan...
 - **Classification UA** : paiement (Lyra, PayPal, Stripe...), monitoring (Uptime-Kuma, Sansec...), bots legitimes (Google, Bing...), SEO, IA
 - **IPs protegees** : les IPs de paiement et monitoring ne sont jamais suggerees au ban
+- **ASN** : identification du reseau source (OVH, AWS, Google, Cloudflare...)
 
 ## Configuration
 
@@ -171,6 +185,9 @@ geoip_db = /usr/share/GeoIP/GeoLite2-Country.mmdb
 ## Notes
 
 - Binaire statique ~6 MB, aucune dependance runtime
+- Lecture depuis stdin (`-d -`) pour piper depuis `tail`, `zcat`, etc.
+- Auto-detection du format vhost (vhost:port IP ... vs IP ...)
+- Temps de reponse: ajouter `%D` (Apache) ou `$request_time` (Nginx) en fin de log
 - Les fichiers `*.error.log` sont automatiquement ignores
 - La whitelist fail2ban (`/etc/fail2ban/jail.d/whitelist-ips.conf`) est chargee automatiquement
 - Supporte les fichiers `.gz`
