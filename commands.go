@@ -36,7 +36,7 @@ func cmdPrefix(data *ParseData, cfg Cfg) {
 
 func cmdStatus(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d codes HTTP", n))
+	header(fmt.Sprintf("Top %d HTTP codes", n))
 	items := topNInt(data.StatusCounts, n)
 	if len(items) == 0 {
 		return
@@ -51,7 +51,7 @@ func cmdStatus(data *ParseData, cfg Cfg) {
 
 func cmdHeavy(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d IPs par volume", n))
+	header(fmt.Sprintf("Top %d IPs by volume", n))
 	items := topN64(data.IPBytes, n)
 	if len(items) == 0 {
 		return
@@ -69,12 +69,12 @@ func cmdHeavy(data *ParseData, cfg Cfg) {
 }
 
 func cmdMethods(data *ParseData, cfg Cfg) {
-	header("Methodes HTTP")
+	header("HTTP methods")
 	showTop(data.MethodCounts, cfgInt(cfg, "top_n", 10), data.Total, 0)
 }
 
 func cmdHour(data *ParseData, cfg Cfg) {
-	header("Requetes par heure")
+	header("Requests per hour")
 	if len(data.HourCounts) == 0 {
 		return
 	}
@@ -95,13 +95,13 @@ func cmdHour(data *ParseData, cfg Cfg) {
 
 func cmdMinute(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d pics par minute", n))
+	header(fmt.Sprintf("Top %d peaks per minute", n))
 	showTop(data.MinuteCounts, n, 0, 0)
 }
 
 func cmdSlow(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d requetes les plus lentes", n))
+	header(fmt.Sprintf("Top %d slowest requests", n))
 	for i, sr := range data.SlowReqs {
 		if i >= n {
 			break
@@ -112,7 +112,7 @@ func cmdSlow(data *ParseData, cfg Cfg) {
 
 func cmd404(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d URIs en 404", n))
+	header(fmt.Sprintf("Top %d 404 URIs", n))
 	total := 0
 	for _, c := range data.URI404 {
 		total += c
@@ -122,7 +122,7 @@ func cmd404(data *ParseData, cfg Cfg) {
 
 func cmd403(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d IPs bloquees (403)", n))
+	header(fmt.Sprintf("Top %d blocked IPs (403)", n))
 	total := 0
 	for _, c := range data.IP403 {
 		total += c
@@ -131,13 +131,13 @@ func cmd403(data *ParseData, cfg Cfg) {
 }
 
 func cmdCrawlers(data *ParseData, cfg Cfg) {
-	header("Bots/Crawlers detectes")
+	header("Detected bots/crawlers")
 	showTop(data.BotUAs, cfgInt(cfg, "top_n", 10), data.BotCount, 0)
 }
 
 func cmdSuspect(data *ParseData, cfg Cfg) {
 	thresh := cfgInt(cfg, "suspect_threshold", 500)
-	header(fmt.Sprintf("IPs suspectes (> %d requetes)", thresh))
+	header(fmt.Sprintf("Suspect IPs (> %d requests)", thresh))
 	found := make(map[string]int)
 	for ip, c := range data.IPCounts {
 		if c > thresh {
@@ -148,7 +148,7 @@ func cmdSuspect(data *ParseData, cfg Cfg) {
 }
 
 func cmdEmptyUA(data *ParseData, cfg Cfg) {
-	header("Requetes sans User-Agent")
+	header("Requests without User-Agent")
 	total := 0
 	for _, c := range data.EmptyUAIPs {
 		total += c
@@ -157,7 +157,7 @@ func cmdEmptyUA(data *ParseData, cfg Cfg) {
 }
 
 func cmdSQL(data *ParseData, cfg Cfg) {
-	header("Tentatives d'injection SQL")
+	header("SQL injection attempts")
 	m := data.ThreatIPs["SQL"]
 	if m == nil {
 		m = make(map[string]int)
@@ -166,7 +166,7 @@ func cmdSQL(data *ParseData, cfg Cfg) {
 }
 
 func cmdXSS(data *ParseData, cfg Cfg) {
-	header("Tentatives XSS")
+	header("XSS attempts")
 	m := data.ThreatIPs["XSS"]
 	if m == nil {
 		m = make(map[string]int)
@@ -175,7 +175,7 @@ func cmdXSS(data *ParseData, cfg Cfg) {
 }
 
 func cmdTraversal(data *ParseData, cfg Cfg) {
-	header("Tentatives de path traversal")
+	header("Path traversal attempts")
 	m := data.ThreatIPs["TRAVERSAL"]
 	if m == nil {
 		m = make(map[string]int)
@@ -184,12 +184,12 @@ func cmdTraversal(data *ParseData, cfg Cfg) {
 }
 
 func cmdScanners(data *ParseData, cfg Cfg) {
-	header("Detection de scanners")
+	header("Scanner detection")
 	showTop(data.ScannerUAs, cfgInt(cfg, "top_n", 10), 0, 0)
 }
 
 func cmdWPAttack(data *ParseData, cfg Cfg) {
-	header("Attaques WordPress")
+	header("WordPress attacks")
 	m := data.ThreatIPs["WP"]
 	if m == nil {
 		m = make(map[string]int)
@@ -199,7 +199,7 @@ func cmdWPAttack(data *ParseData, cfg Cfg) {
 
 func cmdPostFlood(data *ParseData, cfg Cfg) {
 	thresh := cfgInt(cfg, "post_flood_threshold", 200)
-	header(fmt.Sprintf("Flood POST par IP (> %d)", thresh))
+	header(fmt.Sprintf("POST flood per IP (> %d)", thresh))
 	found := make(map[string]int)
 	for ip, c := range data.PostIPs {
 		if c > thresh && !isProtectedIP(ip, data) {
@@ -212,7 +212,7 @@ func cmdPostFlood(data *ParseData, cfg Cfg) {
 func cmdBurst(data *ParseData, cfg Cfg) {
 	thresh := cfgInt(cfg, "burst_threshold", 30)
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("IPs en burst (> %d req/min)", thresh))
+	header(fmt.Sprintf("Burst IPs (> %d req/min)", thresh))
 	type burst struct {
 		count int
 		ip    string
@@ -236,7 +236,7 @@ func cmdBurst(data *ParseData, cfg Cfg) {
 }
 
 func cmdSummary(data *ParseData, cfg Cfg) {
-	header("Resume rapide")
+	header("Quick summary")
 	total := data.Total
 	unique := len(data.IPCounts)
 	bots := data.BotCount
@@ -263,13 +263,13 @@ func cmdSummary(data *ParseData, cfg Cfg) {
 		err5Pct = s5xx * 100 / total
 	}
 
-	fmt.Printf("  Requetes totales  : %s%s%s\n", cBold, fmtComma(total), cReset)
-	fmt.Printf("  IPs uniques       : %s%s%s\n", cBold, fmtComma(unique), cReset)
-	fmt.Printf("  Volume total      : %s%s%s\n", cBold, fmtSize(totalBytes), cReset)
+	fmt.Printf("  Total requests    : %s%s%s\n", cBold, fmtComma(total), cReset)
+	fmt.Printf("  Unique IPs        : %s%s%s\n", cBold, fmtComma(unique), cReset)
+	fmt.Printf("  Total volume      : %s%s%s\n", cBold, fmtSize(totalBytes), cReset)
 	fmt.Printf("  Bots/Crawlers     : %s%s%s (%d%%)\n", cBold, fmtComma(bots), cReset, botPct)
-	fmt.Printf("  Sans User-Agent   : %s%s%s\n", cBold, fmtComma(euTotal), cReset)
-	fmt.Printf("  Erreurs 4xx       : %s%s%s (%d%%)\n", cBold, fmtComma(s4xx), cReset, err4Pct)
-	fmt.Printf("  Erreurs 5xx       : %s%s%s (%d%%)\n", cBold, fmtComma(s5xx), cReset, err5Pct)
+	fmt.Printf("  No User-Agent     : %s%s%s\n", cBold, fmtComma(euTotal), cReset)
+	fmt.Printf("  4xx errors        : %s%s%s (%d%%)\n", cBold, fmtComma(s4xx), cReset, err4Pct)
+	fmt.Printf("  5xx errors        : %s%s%s (%d%%)\n", cBold, fmtComma(s5xx), cReset, err5Pct)
 
 	suspect := 0
 	thresh := cfgInt(cfg, "suspect_threshold", 500)
@@ -284,16 +284,36 @@ func cmdSummary(data *ParseData, cfg Cfg) {
 	}
 	fmt.Println()
 	if suspect > 0 {
-		fmt.Printf("  %s!! %d IP(s) suspecte(s) (> %d req)%s\n", cRed, suspect, thresh, cReset)
+		fmt.Printf("  %s!! %d suspect IP(s) (> %d req)%s\n", cRed, suspect, thresh, cReset)
 	}
 	if threats > 0 {
-		fmt.Printf("  %s!! %s requete(s) malveillante(s) detectee(s)%s\n", cRed, fmtComma(threats), cReset)
+		fmt.Printf("  %s!! %s malicious request(s) detected%s\n", cRed, fmtComma(threats), cReset)
 	}
 	if err5Pct > 5 {
-		fmt.Printf("  %s!! Taux d'erreurs 5xx eleve (%d%%)%s\n", cRed, err5Pct, cReset)
+		fmt.Printf("  %s!! High 5xx error rate (%d%%)%s\n", cRed, err5Pct, cReset)
 	}
-	if suspect == 0 && threats == 0 && err5Pct <= 5 {
-		fmt.Printf("  %sAucune alerte%s\n", cGreen, cReset)
+	if len(data.WebshellIPs) > 0 {
+		fmt.Printf("  %s!! %d IP(s) scanning webshells%s\n", cRed, len(data.WebshellIPs), cReset)
+	}
+	malformedTotal := 0
+	for _, c := range data.MalformedURLs {
+		malformedTotal += c
+	}
+	if malformedTotal > 0 {
+		fmt.Printf("  %s!! %s malformed URLs (domain in path)%s\n", cRed, fmtComma(malformedTotal), cReset)
+	}
+	storm404Count := 0
+	burstThresh404 := cfgInt(cfg, "burst_threshold", 30)
+	for _, c := range data.Storm404Minutes {
+		if c > burstThresh404 {
+			storm404Count++
+		}
+	}
+	if storm404Count > 0 {
+		fmt.Printf("  %s!! %d 404 storm(s) detected (> %d 404/min)%s\n", cRed, storm404Count, burstThresh404, cReset)
+	}
+	if suspect == 0 && threats == 0 && err5Pct <= 5 && len(data.WebshellIPs) == 0 && malformedTotal == 0 && storm404Count == 0 {
+		fmt.Printf("  %sNo alerts%s\n", cGreen, cReset)
 	}
 
 	fmt.Printf("\n  %sTop 3 IPs:%s\n", cBold, cReset)
@@ -307,10 +327,10 @@ func cmdSummary(data *ParseData, cfg Cfg) {
 }
 
 func cmdThreat(data *ParseData, cfg Cfg) {
-	header("Vue combinee des menaces")
+	header("Combined threat view")
 	labels := []struct{ key, label string }{
 		{"SQL", "SQL Injection"}, {"XSS", "XSS"}, {"TRAVERSAL", "Path Traversal"},
-		{"SCAN", "Scanners"}, {"WP", "WordPress"}, {"SENSITIVE", "Fichiers sensibles"},
+		{"SCAN", "Scanners"}, {"WEBSHELL", "Webshell scans"}, {"WP", "WordPress"}, {"SENSITIVE", "Sensitive files"},
 	}
 	hasThreat := false
 	for _, l := range labels {
@@ -333,7 +353,7 @@ func cmdThreat(data *ParseData, cfg Cfg) {
 	}
 
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d IPs malveillantes (par score)", n))
+	header(fmt.Sprintf("Top %d malicious IPs (by score)", n))
 	type scored struct {
 		score int
 		ip    string
@@ -353,22 +373,22 @@ func cmdThreat(data *ParseData, cfg Cfg) {
 			cRed, s.score, cReset, s.ip, fmtComma(hits), strings.Join(types, ","))
 	}
 	if !hasThreat {
-		fmt.Printf("  %sAucune menace detectee%s\n", cGreen, cReset)
+		fmt.Printf("  %sNo threats detected%s\n", cGreen, cReset)
 	}
 }
 
 func cmdClassify(data *ParseData, cfg Cfg) {
-	header("Classification du trafic")
+	header("Traffic classification")
 	total := data.Total
 	if total == 0 {
-		fmt.Printf("  %sAucune requete%s\n", cYellow, cReset)
+		fmt.Printf("  %sNo requests%s\n", cYellow, cReset)
 		return
 	}
 	cats := []struct{ key, label string }{
-		{"HUMAN", "Humain (navigateurs)"}, {"PAYMENT", "Paiement (Lyra, PayPal, Stripe...)"},
-		{"MONITORING", "Monitoring (Uptime, Sansec...)"}, {"LEGIT_BOT", "Bots legitimes (Google, Bing...)"},
-		{"SEO", "SEO (Semrush, Ahrefs, OnCrawl...)"}, {"AI_BOT", "IA (GPTBot, ClaudeBot...)"},
-		{"UNKNOWN", "Sans User-Agent / inconnu"},
+		{"HUMAN", "Human (browsers)"}, {"PAYMENT", "Payment (Lyra, PayPal, Stripe...)"},
+		{"MONITORING", "Monitoring (Uptime, Sansec...)"}, {"LEGIT_BOT", "Legitimate bots (Google, Bing...)"},
+		{"SEO", "SEO (Semrush, Ahrefs, OnCrawl...)"}, {"AI_BOT", "AI (GPTBot, ClaudeBot...)"},
+		{"UNKNOWN", "No User-Agent / unknown"},
 	}
 	colors := map[string]string{
 		"HUMAN": cGreen, "PAYMENT": cCyan, "MONITORING": cCyan,
@@ -400,7 +420,7 @@ func cmdClassify(data *ParseData, cfg Cfg) {
 	// Payment URIs
 	if len(data.PaymentHits) > 0 {
 		n := cfgInt(cfg, "top_n", 10)
-		header("Activite paiement (URIs checkout/payment/webhook)")
+		header("Payment activity (checkout/payment/webhook URIs)")
 		for _, kv := range topN(data.PaymentHits, n) {
 			classes := "HUMAN"
 			if c := sortedKeys(data.IPClasses[kv.Key]); len(c) > 0 {
@@ -408,7 +428,7 @@ func cmdClassify(data *ParseData, cfg Cfg) {
 			}
 			prot := ""
 			if isProtectedIP(kv.Key, data) {
-				prot = fmt.Sprintf("  %s[PROTEGE]%s", cGreen, cReset)
+				prot = fmt.Sprintf("  %s[PROTECTED]%s", cGreen, cReset)
 			}
 			fmt.Printf("  %6s  %-16s  [%s]%s\n", fmtComma(kv.Val), kv.Key, classes, prot)
 		}
@@ -422,8 +442,8 @@ func cmdClassify(data *ParseData, cfg Cfg) {
 		}
 	}
 	if len(protected) > 0 {
-		header("IPs protegees (paiement + monitoring)")
-		fmt.Printf("  %sCes IPs ne seront jamais proposees au ban dans 'actions'%s\n\n", cCyan, cReset)
+		header("Protected IPs (payment + monitoring)")
+		fmt.Printf("  %sThese IPs will never be proposed for banning in 'actions'%s\n\n", cCyan, cReset)
 		var ips []string
 		for ip := range protected {
 			ips = append(ips, ip)
@@ -439,16 +459,16 @@ func cmdClassify(data *ParseData, cfg Cfg) {
 
 func cmdCountries(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d pays (GeoIP)", n))
+	header(fmt.Sprintf("Top %d countries (GeoIP)", n))
 	dbPath := findGeoIPDB(cfgStr(cfg, "geoip_db", ""))
 	if dbPath == "" {
-		warn("Base GeoIP introuvable")
+		warn("GeoIP database not found")
 		fmt.Println("    an4log setup-geoip")
 		return
 	}
 	db, err := maxminddb.Open(dbPath)
 	if err != nil {
-		warn(fmt.Sprintf("Erreur ouverture GeoIP: %v", err))
+		warn(fmt.Sprintf("Error opening GeoIP: %v", err))
 		return
 	}
 	defer db.Close()
@@ -465,12 +485,12 @@ func cmdCountries(data *ParseData, cfg Cfg) {
 	for ip, hits := range data.IPCounts {
 		pip := net.ParseIP(ip)
 		var result geoResult
-		key := "??|Inconnu"
+		key := "??|Unknown"
 		if pip != nil {
 			if err := db.Lookup(pip, &result); err == nil && result.Country.ISOCode != "" {
 				name := result.Country.Names["en"]
 				if name == "" {
-					name = "Inconnu"
+					name = "Unknown"
 				}
 				key = result.Country.ISOCode + "|" + name
 			}
@@ -481,8 +501,8 @@ func cmdCountries(data *ParseData, cfg Cfg) {
 
 	totalIPs := len(data.IPCounts)
 	totalHits := data.Total
-	fmt.Printf("  Total: %d IPs uniques, %d hits\n\n", totalIPs, totalHits)
-	fmt.Printf("%3s  %-30s %4s  | %12s | %12s | %7s\n", "#", "Pays", "Code", "IPs uniques", "Hits", "% hits")
+	fmt.Printf("  Total: %d unique IPs, %d hits\n\n", totalIPs, totalHits)
+	fmt.Printf("%3s  %-30s %4s  | %12s | %12s | %7s\n", "#", "Country", "Code", "Unique IPs", "Hits", "% hits")
 	fmt.Println(strings.Repeat("-", 85))
 	for i, kv := range topN(countryHits, n) {
 		parts := strings.SplitN(kv.Key, "|", 2)
@@ -498,11 +518,12 @@ func cmdTimeline(data *ParseData, cfg Cfg) {
 	ds := data.DayStats
 	gb := data.GroupBy
 	if len(ds) == 0 {
-		fmt.Printf("  %sPas de donnees temporelles%s\n", cYellow, cReset)
+		fmt.Printf("  %sNo time data%s\n", cYellow, cReset)
 		return
 	}
 	if gb == "" {
-		fmt.Printf("  %sUtiliser --group-by day|month%s\n", cYellow, cReset)
+		fmt.Printf("  %sUse --group-by day|month%s\n", cYellow, cReset)
+
 		return
 	}
 
@@ -524,13 +545,13 @@ func cmdTimeline(data *ParseData, cfg Cfg) {
 			entries = append(entries, statEntry{k, ms.Total, len(ms.IPs), ms.Threats, ms.S4xx, ms.S5xx, ms.Bytes, ms.Bots})
 		}
 		sort.Slice(entries, func(i, j int) bool { return monthSortKey(entries[i].key).Before(monthSortKey(entries[j].key)) })
-		header(fmt.Sprintf("Trafic par mois (%d mois)", len(entries)))
+		header(fmt.Sprintf("Traffic by month (%d months)", len(entries)))
 	} else {
 		for k, d := range ds {
 			entries = append(entries, statEntry{k, d.Total, len(d.IPs), d.Threats, d.S4xx, d.S5xx, d.Bytes, d.Bots})
 		}
 		sort.Slice(entries, func(i, j int) bool { return daySortKey(entries[i].key).Before(daySortKey(entries[j].key)) })
-		header(fmt.Sprintf("Trafic par jour (%d jour(s))", len(entries)))
+		header(fmt.Sprintf("Traffic by day (%d day(s))", len(entries)))
 	}
 
 	maxTotal := 0
@@ -541,7 +562,7 @@ func cmdTimeline(data *ParseData, cfg Cfg) {
 	}
 
 	fmt.Printf("  %12s  %10s  %6s  %8s  %6s  %5s  %8s  %6s\n",
-		"Periode", "Requetes", "IPs", "Menaces", "4xx", "5xx", "Volume", "Bots")
+		"Period", "Requests", "IPs", "Threats", "4xx", "5xx", "Volume", "Bots")
 	fmt.Printf("  %s  %s  %s  %s  %s  %s  %s  %s\n",
 		strings.Repeat("-", 12), strings.Repeat("-", 10), strings.Repeat("-", 6),
 		strings.Repeat("-", 8), strings.Repeat("-", 6), strings.Repeat("-", 5),
@@ -564,18 +585,18 @@ func cmdTimeline(data *ParseData, cfg Cfg) {
 }
 
 func cmdIPProfile(data *ParseData, cfg Cfg, filterIP string) {
-	header(fmt.Sprintf("Profil IP: %s", filterIP))
+	header(fmt.Sprintf("IP profile: %s", filterIP))
 	total := data.Total
-	fmt.Printf("  Requetes totales: %s%s%s\n", cBold, fmtComma(total), cReset)
+	fmt.Printf("  Total requests: %s%s%s\n", cBold, fmtComma(total), cReset)
 	if total == 0 {
-		fmt.Printf("  %sAucune requete trouvee pour cette IP%s\n", cYellow, cReset)
+		fmt.Printf("  %sNo requests found for this IP%s\n", cYellow, cReset)
 		return
 	}
 	if fs, ok := data.IPFirstSeen[filterIP]; ok {
-		fmt.Printf("  Premiere requete : [%s]\n", fs.Format("02/Jan/2006:15:04:05"))
+		fmt.Printf("  First request    : [%s]\n", fs.Format("02/Jan/2006:15:04:05"))
 	}
 	if ls, ok := data.IPLastSeen[filterIP]; ok {
-		fmt.Printf("  Derniere requete : [%s]\n", ls.Format("02/Jan/2006:15:04:05"))
+		fmt.Printf("  Last request     : [%s]\n", ls.Format("02/Jan/2006:15:04:05"))
 	}
 	n := cfgInt(cfg, "top_n", 10)
 	fmt.Printf("\n  %sUser-Agents:%s\n", cBold, cReset)
@@ -585,7 +606,7 @@ func cmdIPProfile(data *ParseData, cfg Cfg, filterIP string) {
 			fmt.Printf("    %s\n", ua)
 		}
 	}
-	fmt.Printf("\n  %sCodes HTTP:%s\n", cBold, cReset)
+	fmt.Printf("\n  %sHTTP codes:%s\n", cBold, cReset)
 	if st := data.IPStatuses[filterIP]; st != nil {
 		for _, kv := range topNInt(st, 0) {
 			fmt.Printf("    %-6d %d\n", kv.Val, kv.Key)
@@ -597,13 +618,13 @@ func cmdIPProfile(data *ParseData, cfg Cfg, filterIP string) {
 			fmt.Printf("    %-6d %s\n", kv.Val, kv.Key)
 		}
 	}
-	fmt.Printf("\n  %sMethodes:%s\n", cBold, cReset)
+	fmt.Printf("\n  %sMethods:%s\n", cBold, cReset)
 	if methods := data.IPMethods[filterIP]; methods != nil {
 		for _, kv := range topN(methods, 0) {
 			fmt.Printf("    %-6d %s\n", kv.Val, kv.Key)
 		}
 	}
-	fmt.Printf("\n  %sRequetes par heure:%s\n", cBold, cReset)
+	fmt.Printf("\n  %sRequests per hour:%s\n", cBold, cReset)
 	if hours := data.IPHours[filterIP]; hours != nil {
 		for _, kv := range topN(hours, n) {
 			fmt.Printf("    %-6d %sh\n", kv.Val, kv.Key)
@@ -611,7 +632,7 @@ func cmdIPProfile(data *ParseData, cfg Cfg, filterIP string) {
 	}
 	if threats := data.IPThreats[filterIP]; len(threats) > 0 {
 		types := sortedKeys(threats)
-		fmt.Printf("\n  %sMenaces detectees: %s%s\n", cRed, strings.Join(types, ", "), cReset)
+		fmt.Printf("\n  %sThreats detected: %s%s\n", cRed, strings.Join(types, ", "), cReset)
 		fmt.Printf("  Score: %d\n", ipScore(filterIP, data, cfg))
 	}
 }
@@ -688,13 +709,13 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 	}
 
 	if len(wlRaw) > 0 {
-		fmt.Printf("\n  %sWhitelist active:%s %s\n", cCyan, cReset, strings.Join(wlRaw, " "))
+		fmt.Printf("\n  %sActive whitelist:%s %s\n", cCyan, cReset, strings.Join(wlRaw, " "))
 	}
 
 	// Attack IPs
-	header("IPs a bannir - Attaques detectees")
+	header("IPs to ban - Detected attacks")
 	if len(attackIPs) > 0 {
-		fmt.Printf("  %sCommandes iptables :%s\n\n", cBold, cReset)
+		fmt.Printf("  %siptables commands:%s\n\n", cBold, cReset)
 		skipWL, skipProt := 0, 0
 		for _, s := range attackIPs {
 			if isWhitelisted(s.ip, wlNets) {
@@ -716,21 +737,21 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 				s.ip, ccStr, fmtComma(hits), types, s.score)
 		}
 		if skipWL > 0 {
-			fmt.Printf("\n  %s%d IP(s) ignoree(s) (whitelist)%s\n", cCyan, skipWL, cReset)
+			fmt.Printf("\n  %s%d IP(s) skipped (whitelist)%s\n", cCyan, skipWL, cReset)
 		}
 		if skipProt > 0 {
-			fmt.Printf("  %s%d IP(s) ignoree(s) (paiement/monitoring)%s\n", cCyan, skipProt, cReset)
+			fmt.Printf("  %s%d IP(s) skipped (payment/monitoring)%s\n", cCyan, skipProt, cReset)
 		}
 	} else {
-		fmt.Printf("  %sAucune IP d'attaque detectee%s\n", cGreen, cReset)
+		fmt.Printf("  %sNo attack IPs detected%s\n", cGreen, cReset)
 	}
 
 	// Suspect IPs
-	header(fmt.Sprintf("IPs a surveiller - Volume suspect (> %d req)", thresh))
+	header(fmt.Sprintf("IPs to monitor - Suspect volume (> %d req)", thresh))
 	if len(suspectIPs) > 0 {
-		fmt.Printf("  %sVerifier si ces IPs sont legitimes (monitoring, crawlers autorises)%s\n", cYellow, cReset)
-		fmt.Printf("  %savant de les bannir. Utilisez: an4log --ip <addr> pour les profiler.%s\n", cYellow, cReset)
-		fmt.Printf("\n  %sCommandes iptables :%s\n\n", cBold, cReset)
+		fmt.Printf("  %sCheck if these IPs are legitimate (monitoring, authorized crawlers)%s\n", cYellow, cReset)
+		fmt.Printf("  %sbefore banning. Use: an4log --ip <addr> to profile.%s\n", cYellow, cReset)
+		fmt.Printf("\n  %siptables commands:%s\n\n", cBold, cReset)
 		for _, ip := range suspectIPs {
 			if isWhitelisted(ip, wlNets) || isProtectedIP(ip, data) {
 				continue
@@ -744,14 +765,14 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 			fmt.Printf("  iptables -A INPUT -s %s -j DROP  # %s%s hits\n", ip, ccStr, fmtComma(hits))
 		}
 	} else {
-		fmt.Printf("  %sAucune IP suspecte par volume%s\n", cGreen, cReset)
+		fmt.Printf("  %sNo suspect IPs by volume%s\n", cGreen, cReset)
 	}
 
 	// Empty UA
-	header(fmt.Sprintf("IPs sans User-Agent (> %d req)", uaThresh))
+	header(fmt.Sprintf("IPs without User-Agent (> %d req)", uaThresh))
 	if len(emptyUAList) > 0 {
-		fmt.Printf("  %sSouvent des bots ou scripts. Verifier avant de bannir.%s\n", cYellow, cReset)
-		fmt.Printf("\n  %sCommandes iptables :%s\n\n", cBold, cReset)
+		fmt.Printf("  %sOften bots or scripts. Check before banning.%s\n", cYellow, cReset)
+		fmt.Printf("\n  %siptables commands:%s\n\n", cBold, cReset)
 		for _, ip := range emptyUAList {
 			if isWhitelisted(ip, wlNets) || isProtectedIP(ip, data) {
 				continue
@@ -765,15 +786,15 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 			fmt.Printf("  iptables -A INPUT -s %s -j DROP  # %s%s hits, no UA\n", ip, ccStr, fmtComma(hits))
 		}
 	} else {
-		fmt.Printf("  %sAucune IP sans UA significative%s\n", cGreen, cReset)
+		fmt.Printf("  %sNo significant IPs without UA%s\n", cGreen, cReset)
 	}
 
 	// Prefixes
-	header(fmt.Sprintf("Blocs IP a bannir (prefixes > %d req)", prefixThresh))
+	header(fmt.Sprintf("IP blocks to ban (prefixes > %d req)", prefixThresh))
 	if len(suspectPrefixes) > 0 {
-		fmt.Printf("  %sAttention: un bloc /16 = 65536 IPs. Verifier que ce ne sont pas%s\n", cYellow, cReset)
-		fmt.Printf("  %sdes CDN/cloud legitimes (Google, Cloudflare, OVH...).%s\n", cYellow, cReset)
-		fmt.Printf("\n  %sCommandes iptables :%s\n\n", cBold, cReset)
+		fmt.Printf("  %sWarning: a /16 block = 65536 IPs. Check that these are not%s\n", cYellow, cReset)
+		fmt.Printf("  %slegitimate CDN/cloud (Google, Cloudflare, OVH...).%s\n", cYellow, cReset)
+		fmt.Printf("\n  %siptables commands:%s\n\n", cBold, cReset)
 		for _, ph := range suspectPrefixes {
 			if isPrefixWhitelisted(ph.prefix, wlRaw) {
 				fmt.Printf("  %s# SKIP %s.0.0/16 (whitelist) - %d hits%s\n", cCyan, ph.prefix, ph.hits, cReset)
@@ -782,17 +803,17 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 			fmt.Printf("  iptables -A INPUT -s %s.0.0/16 -j DROP  # %s hits\n", ph.prefix, fmtComma(ph.hits))
 		}
 	} else {
-		fmt.Printf("  %sAucun bloc IP suspect%s\n", cGreen, cReset)
+		fmt.Printf("  %sNo suspect IP blocks%s\n", cGreen, cReset)
 	}
 
 	// Script + alternatives
-	header("Script complet a copier/coller")
-	fmt.Printf("  %sRevoyez chaque regle avant execution !%s\n\n", cYellow, cReset)
+	header("Complete script to copy/paste")
+	fmt.Printf("  %sReview each rule before execution!%s\n\n", cYellow, cReset)
 	fmt.Println("  #!/bin/bash")
-	fmt.Printf("  # Genere par an4log v%s - %s\n", version, time.Now().Format("2006-01-02 15:04"))
+	fmt.Printf("  # Generated by an4log v%s - %s\n", version, time.Now().Format("2006-01-02 15:04"))
 	fmt.Printf("  # Whitelist: %s\n\n", strings.Join(wlRaw, " "))
 	if len(attackIPs) > 0 {
-		fmt.Println("  # --- IPs d'attaque (bannir) ---")
+		fmt.Println("  # --- Attack IPs (ban) ---")
 		for _, s := range attackIPs {
 			if isWhitelisted(s.ip, wlNets) {
 				continue
@@ -806,34 +827,34 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 		}
 		fmt.Println()
 	}
-	fmt.Println("  # Sauvegarder les regles")
+	fmt.Println("  # Save rules")
 	fmt.Println("  # Debian/Ubuntu : iptables-save > /etc/iptables/rules.v4")
 	fmt.Println("  # RHEL/CentOS   : service iptables save")
 
-	header("Alternatives recommandees")
-	fmt.Printf("  %sfail2ban%s (ban temporaire automatique) :\n", cBold, cReset)
+	header("Recommended alternatives")
+	fmt.Printf("  %sfail2ban%s (automatic temporary ban):\n", cBold, cReset)
 	fmt.Println("    apt install fail2ban")
-	fmt.Printf("  %sipset%s (ban massif performant) :\n", cBold, cReset)
+	fmt.Printf("  %sipset%s (high-performance mass ban):\n", cBold, cReset)
 	fmt.Println("    ipset create an4log_blacklist hash:ip hashsize 4096")
 	fmt.Println("    iptables -A INPUT -m set --match-set an4log_blacklist src -j DROP")
 }
 
 func cmdVisitors(data *ParseData, cfg Cfg) {
-	header("Visiteurs uniques")
+	header("Unique visitors")
 	total := data.Total
 	unique := len(data.UniqueVisitors)
 	uniqueIPs := len(data.IPCounts)
-	fmt.Printf("  Requetes totales    : %s%s%s\n", cBold, fmtComma(total), cReset)
-	fmt.Printf("  IPs uniques         : %s%s%s\n", cBold, fmtComma(uniqueIPs), cReset)
-	fmt.Printf("  Visiteurs uniques   : %s%s%s  (IP + User-Agent)\n", cBold, fmtComma(unique), cReset)
+	fmt.Printf("  Total requests      : %s%s%s\n", cBold, fmtComma(total), cReset)
+	fmt.Printf("  Unique IPs          : %s%s%s\n", cBold, fmtComma(uniqueIPs), cReset)
+	fmt.Printf("  Unique visitors     : %s%s%s  (IP + User-Agent)\n", cBold, fmtComma(unique), cReset)
 	if uniqueIPs > 0 {
 		ratio := float64(unique) / float64(uniqueIPs)
-		fmt.Printf("  Ratio visiteur/IP   : %.1f\n", ratio)
+		fmt.Printf("  Visitor/IP ratio    : %.1f\n", ratio)
 	}
 
 	// Per-day unique visitors
 	if len(data.DayStats) > 1 {
-		fmt.Printf("\n  %sVisiteurs uniques par jour :%s\n", cBold, cReset)
+		fmt.Printf("\n  %sUnique visitors per day:%s\n", cBold, cReset)
 		// Rebuild per-day visitors from parsed data — use day+IP as approximation
 		type dayVisitors struct {
 			key  string
@@ -861,7 +882,7 @@ func cmdVhost(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
 	header(fmt.Sprintf("Top %d Virtual Hosts", n))
 	if len(data.VhostCounts) == 0 {
-		fmt.Printf("  %sPas de virtual host detecte (format standard sans vhost)%s\n", cYellow, cReset)
+		fmt.Printf("  %sNo virtual hosts detected (standard format without vhost)%s\n", cYellow, cReset)
 		return
 	}
 	items := topN(data.VhostCounts, n)
@@ -889,12 +910,12 @@ func percentile(sorted []int, p float64) int {
 
 func cmdResponseTime(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d URIs les plus lentes (temps de reponse)", n))
+	header(fmt.Sprintf("Top %d slowest URIs (response time)", n))
 
 	if len(data.URIResponseTime) == 0 {
-		fmt.Printf("  %sPas de donnees de temps de reponse dans les logs%s\n", cYellow, cReset)
-		fmt.Printf("  Apache: ajouter %%D en fin de LogFormat\n")
-		fmt.Printf("  Nginx:  ajouter $request_time en fin de log_format\n")
+		fmt.Printf("  %sNo response time data in logs%s\n", cYellow, cReset)
+		fmt.Printf("  Apache: add %%D at end of LogFormat\n")
+		fmt.Printf("  Nginx: add $request_time at end of log_format\n")
 		return
 	}
 
@@ -925,7 +946,7 @@ func cmdResponseTime(data *ParseData, cfg Cfg) {
 	sort.Slice(items, func(i, j int) bool { return items[i].p95 > items[j].p95 })
 
 	if len(items) == 0 {
-		fmt.Printf("  %sInsuffisamment de donnees%s\n", cYellow, cReset)
+		fmt.Printf("  %sInsufficient data%s\n", cYellow, cReset)
 		return
 	}
 
@@ -949,16 +970,16 @@ func cmdResponseTime(data *ParseData, cfg Cfg) {
 
 func cmdASN(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
-	header(fmt.Sprintf("Top %d reseaux (ASN)", n))
+	header(fmt.Sprintf("Top %d networks (ASN)", n))
 	dbPath := findASNDB()
 	if dbPath == "" {
-		warn("Base GeoLite2-ASN.mmdb introuvable")
-		fmt.Println("    an4log setup-geoip  (telecharge aussi la base ASN)")
+		warn("GeoLite2-ASN.mmdb not found")
+		fmt.Println("    an4log setup-geoip  (also downloads ASN database)")
 		return
 	}
 	db, err := maxminddb.Open(dbPath)
 	if err != nil {
-		warn(fmt.Sprintf("Erreur ouverture ASN: %v", err))
+		warn(fmt.Sprintf("Error opening ASN: %v", err))
 		return
 	}
 	defer db.Close()
@@ -976,7 +997,7 @@ func cmdASN(data *ParseData, cfg Cfg) {
 			continue
 		}
 		var r asnResult
-		key := "??|Inconnu"
+		key := "??|Unknown"
 		if err := db.Lookup(pip, &r); err == nil && r.ASN > 0 {
 			key = fmt.Sprintf("AS%d|%s", r.ASN, r.Org)
 		}
@@ -989,7 +1010,7 @@ func cmdASN(data *ParseData, cfg Cfg) {
 		return
 	}
 	maxVal := items[0].Val
-	fmt.Printf("  %10s  %5s  %6s  %s  %s\n", "Hits", "%", "IPs", "", "Reseau")
+	fmt.Printf("  %10s  %5s  %6s  %s  %s\n", "Hits", "%", "IPs", "", "Network")
 	fmt.Println("  " + strings.Repeat("-", 80))
 	for _, kv := range items {
 		parts := strings.SplitN(kv.Key, "|", 2)
@@ -999,6 +1020,66 @@ func cmdASN(data *ParseData, cfg Cfg) {
 		bar := fmtBar(kv.Val, maxVal, 12)
 		fmt.Printf("  %10s  %s  %6s  %s  %s (%s)\n",
 			fmtComma(kv.Val), pct, fmtComma(ips), bar, org, asn)
+	}
+}
+
+func cmdWebshell(data *ParseData, cfg Cfg) {
+	header("Detected webshell scans")
+	if len(data.WebshellIPs) == 0 {
+		fmt.Printf("  %sNo webshell scans detected%s\n", cGreen, cReset)
+		return
+	}
+	showTop(data.WebshellIPs, cfgInt(cfg, "top_n", 10), 0, 42)
+}
+
+func cmdMalformed(data *ParseData, cfg Cfg) {
+	header("Malformed URLs (domain in path)")
+	if len(data.MalformedURLs) == 0 {
+		fmt.Printf("  %sNo malformed URLs detected%s\n", cGreen, cReset)
+		return
+	}
+	total := 0
+	for _, c := range data.MalformedURLs {
+		total += c
+	}
+	fmt.Printf("  %s%s requests with domain in path%s\n", cRed, fmtComma(total), cReset)
+	fmt.Printf("  %sLikely cause: bot/preload stripping protocol (https://)%s\n\n", cYellow, cReset)
+
+	n := cfgInt(cfg, "top_n", 10)
+	fmt.Printf("  %sTop malformed URIs:%s\n", cBold, cReset)
+	showTop(data.MalformedURLs, n, total, 80)
+	if len(data.MalformedIPs) > 0 {
+		fmt.Printf("\n  %sSource IPs:%s\n", cBold, cReset)
+		showTop(data.MalformedIPs, n, 0, 42)
+	}
+}
+
+func cmdStorm404(data *ParseData, cfg Cfg) {
+	thresh := cfgInt(cfg, "burst_threshold", 30)
+	n := cfgInt(cfg, "top_n", 10)
+	header(fmt.Sprintf("404 storms (> %d 404/min)", thresh))
+	type storm struct {
+		mkey  string
+		count int
+	}
+	var storms []storm
+	for mkey, count := range data.Storm404Minutes {
+		if count > thresh {
+			storms = append(storms, storm{mkey, count})
+		}
+	}
+	if len(storms) == 0 {
+		fmt.Printf("  %sNo 404 storms detected%s\n", cGreen, cReset)
+		return
+	}
+	sort.Slice(storms, func(i, j int) bool { return storms[i].count > storms[j].count })
+	fmt.Printf("  %s%d 404 peak(s) detected — risk of PHP exhaustion if 404s go through WordPress%s\n\n",
+		cRed, len(storms), cReset)
+	for i, s := range storms {
+		if i >= n {
+			break
+		}
+		fmt.Printf("  %6s 404/min  %s\n", fmtComma(s.count), s.mkey)
 	}
 }
 
@@ -1035,6 +1116,14 @@ func cmdAll(ctx *CmdCtx) {
 	cmdBurst(data, cfg)
 	cmdASN(data, cfg)
 
+	// New detections
+	if len(data.MalformedURLs) > 0 {
+		cmdMalformed(data, cfg)
+	}
+	if len(data.Storm404Minutes) > 0 {
+		cmdStorm404(data, cfg)
+	}
+
 	// Security sections: compact empty ones
 	type secCmd struct {
 		fn    func(*ParseData, Cfg)
@@ -1042,6 +1131,7 @@ func cmdAll(ctx *CmdCtx) {
 		empty bool
 	}
 	secs := []secCmd{
+		{cmdWebshell, "Webshell", len(data.WebshellIPs) == 0},
 		{cmdScanners, "Scanners", len(data.ScannerUAs) == 0},
 		{cmdSQL, "SQL", len(data.ThreatIPs["SQL"]) == 0},
 		{cmdXSS, "XSS", len(data.ThreatIPs["XSS"]) == 0},
@@ -1058,7 +1148,7 @@ func cmdAll(ctx *CmdCtx) {
 		}
 	}
 	if len(emptyLabels) > 0 {
-		fmt.Printf("\n  %sAucune detection :%s %s\n", cGreen, cReset, strings.Join(emptyLabels, ", "))
+		fmt.Printf("\n  %sNo detection:%s %s\n", cGreen, cReset, strings.Join(emptyLabels, ", "))
 	}
 }
 

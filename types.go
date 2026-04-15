@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var version = "3.1.0"
+var version = "3.2.0"
 
 // ── Data structures ──
 
@@ -54,6 +54,10 @@ type ParseData struct {
 	URIResponseTime map[string][]int  // URI -> response times (µs)
 	IPResponseTime  map[string][]int  // IP -> response times (µs)
 	ASNData         map[string]string // ip -> "AS1234 Name"
+	WebshellIPs     map[string]int    // ip -> count of webshell scan attempts
+	MalformedURLs   map[string]int    // malformed URI -> count
+	MalformedIPs    map[string]int    // ip -> count of malformed URL requests
+	Storm404Minutes map[string]int    // minute key -> count of 404s in that minute
 }
 
 type DayStat struct {

@@ -194,7 +194,7 @@ func resolveFiles(patterns []string) []string {
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)
 		if err != nil || len(matches) == 0 {
-			warn(fmt.Sprintf("Aucun fichier pour: %s", pattern))
+			warn(fmt.Sprintf("No files for: %s", pattern))
 			continue
 		}
 		for _, f := range matches {
@@ -205,14 +205,14 @@ func resolveFiles(patterns []string) []string {
 			}
 			info, err := os.Stat(f)
 			if err != nil || info.IsDir() {
-				warn(fmt.Sprintf("Fichier non lisible: %s", f))
+				warn(fmt.Sprintf("File not readable: %s", f))
 				continue
 			}
 			files = append(files, f)
 		}
 	}
 	if len(skipped) > 0 {
-		warn(fmt.Sprintf("Ignore %d error log(s): %s", len(skipped), strings.Join(skipped, ", ")))
+		warn(fmt.Sprintf("Ignoring %d error log(s): %s", len(skipped), strings.Join(skipped, ", ")))
 	}
 	return files
 }
@@ -239,8 +239,8 @@ func validateFormat(files []string) bool {
 		}
 	}
 	if checked > 0 && matched < checked/2 {
-		warn(fmt.Sprintf("Format de log non reconnu (%d/%d lignes parsees)", matched, checked))
-		warn("Format attendu: Combined Log Format (Apache/Nginx)")
+		warn(fmt.Sprintf("Unrecognized log format (%d/%d lines parsed)", matched, checked))
+		warn("Expected format: Combined Log Format (Apache/Nginx)")
 		return false
 	}
 	return true

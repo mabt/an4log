@@ -37,6 +37,14 @@ var vhostLogRE = regexp.MustCompile(`^(\S+?)(?::\d+)? (\S+) \S+ \S+ \[([^\]]+)\]
 // Response time at end of line (µs or ms, Apache %D or Nginx $request_time)
 var responseTimeRE = regexp.MustCompile(`\s(\d+)$`)
 
+// Webshell scan: common backdoor filenames probed by attackers
+var webshellRE = regexp.MustCompile(`(?i)/(txets|schallfuns|postnews|alfashell|wso|c99|r57|b374k|mini|shell|madspot|filesman|leaf|indoxploit|adminer)\.php`)
+var webshellHints = []string{"txets.", "schallfuns.", "postnews.", "alfashell.", "wso.", "c99.", "r57.", "b374k.", "mini.", "shell.", "madspot.", "filesman.", "leaf.", "indoxploit.", "adminer."}
+
+// Malformed URLs: domain-in-path (bot stripping protocol from absolute URLs)
+// Matches: /carrelagesignature.com/wp-content/..., /www.google.com/..., /cdn.example.com/...
+var malformedURLRE = regexp.MustCompile(`^/(?:[a-z0-9-]+\.)+(?:com|net|org|io|fr|de|eu|co|uk|info|me|dev|app|cloud|site|online|xyz)/`)
+
 var threatScores = map[string]int{
-	"SQL": 10, "XSS": 10, "TRAVERSAL": 8, "SCAN": 8, "WP": 5, "SENSITIVE": 5,
+	"SQL": 10, "XSS": 10, "TRAVERSAL": 8, "SCAN": 8, "WP": 5, "SENSITIVE": 5, "WEBSHELL": 8,
 }

@@ -115,10 +115,10 @@ footer{margin-top:32px;padding:14px 0;border-top:1px solid #21262d;color:#484f58
 
 // ── JS ──
 
-const htmlJS = `function fmtN(n){return n.toLocaleString('fr-FR')}
+const htmlJS = `function fmtN(n){return n.toLocaleString('en-US')}
 function fmtSize(n){
-  var u=['o','K','M','G','T'];
-  for(var i=0;i<u.length;i++){if(Math.abs(n)<1024)return(u[i]==='o'?n:n.toFixed(1))+u[i];n/=1024}
+  var u=['B','K','M','G','T'];
+  for(var i=0;i<u.length;i++){if(Math.abs(n)<1024)return(u[i]==='B'?n:n.toFixed(1))+u[i];n/=1024}
   return n.toFixed(1)+'P';
 }
 function setTL(mode){
@@ -128,21 +128,21 @@ function setTL(mode){
 }
 function renderTL(){
   var src=TL[tlMode],chart=document.getElementById('tl-chart'),kpis=document.getElementById('tl-kpis');
-  if(!src||!src.length){chart.innerHTML='<div style="color:#8b949e;padding:20px">Aucune donnee</div>';kpis.innerHTML='';return}
+  if(!src||!src.length){chart.innerHTML='<div style="color:#8b949e;padding:20px">No data</div>';kpis.innerHTML='';return}
   var mx=Math.max.apply(null,src.map(function(d){return d.total}))||1;
   chart.innerHTML=src.map(function(d){
     var h=Math.max(d.total/mx*100,2);
     return '<div class="tl-bar"><div class="val">'+fmtN(d.total)+'</div>'+
       '<div class="fill" style="height:'+h.toFixed(1)+'%" title="'+d.label+': '+fmtN(d.total)+' req, '+
-      fmtN(d.ips)+' IPs, '+fmtN(d.threats)+' menaces"></div>'+
+      fmtN(d.ips)+' IPs, '+fmtN(d.threats)+' threats"></div>'+
       '<div class="lbl">'+d.label+'</div></div>';
   }).join('');
   var t={total:0,ips:0,threats:0,s4xx:0,s5xx:0,bytes:0,bots:0};
   src.forEach(function(d){t.total+=d.total;t.ips+=d.ips;t.threats+=d.threats;
     t.s4xx+=d.s4xx;t.s5xx+=d.s5xx;t.bytes+=d.bytes;t.bots+=d.bots});
-  kpis.innerHTML='<div><div class="v">'+fmtN(t.total)+'</div><div class="l">Requetes</div></div>'+
+  kpis.innerHTML='<div><div class="v">'+fmtN(t.total)+'</div><div class="l">Requests</div></div>'+
     '<div><div class="v">'+fmtN(t.ips)+'</div><div class="l">IPs</div></div>'+
-    '<div><div class="v'+(t.threats?' alert':'')+'">'+(t.threats?fmtN(t.threats):'0')+'</div><div class="l">Menaces</div></div>'+
+    '<div><div class="v'+(t.threats?' alert':'')+'">'+(t.threats?fmtN(t.threats):'0')+'</div><div class="l">Threats</div></div>'+
     '<div><div class="v">'+fmtN(t.s4xx)+'</div><div class="l">4xx</div></div>'+
     '<div><div class="v'+(t.s5xx?' alert':'')+'">'+(t.s5xx?fmtN(t.s5xx):'0')+'</div><div class="l">5xx</div></div>'+
     '<div><div class="v">'+fmtSize(t.bytes)+'</div><div class="l">Volume</div></div>'+
@@ -329,7 +329,7 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 		uniqueDays[t.Format("2006-01-02")] = true
 	}
 	nDays := len(uniqueDays)
-	daysStr := fmt.Sprintf("%d jour", nDays)
+	daysStr := fmt.Sprintf("%d day", nDays)
 	if nDays > 1 {
 		daysStr += "s"
 	}
@@ -399,26 +399,26 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 	var p strings.Builder
 
 	// Head
-	fmt.Fprintf(&p, `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+	fmt.Fprintf(&p, `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Rapport an4log — %s &rarr; %s</title>
+<title>an4log report — %s &rarr; %s</title>
 <style>%s</style></head><body>`, esc(dateFrom), esc(dateTo), htmlCSS)
 
 	// Header
-	filesStr := "fichier"
+	filesStr := "file"
 	if len(files) > 1 {
-		filesStr = "fichiers"
+		filesStr = "files"
 	}
 	fmt.Fprintf(&p, `<div class="hdr">
 <h1>an4log <span>v%s</span></h1>
 <div class="period">%s &rarr; %s &nbsp;&middot;&nbsp; %s</div>
-<div class="meta">%d %s &middot; Parse en %.2fs &middot; Genere le %s</div>
+<div class="meta">%d %s &middot; Parsed in %.2fs &middot; Generated %s</div>
 </div>`, version, esc(dateFrom), esc(dateTo), daysStr,
-		len(files), filesStr, elapsed, now.Format("02/01/2006 a 15:04"))
+		len(files), filesStr, elapsed, now.Format("2006-01-02 15:04"))
 
 	// Nav
-	p.WriteString(`<nav><a href="#overview">Vue d'ensemble</a><a href="#traffic">Trafic</a>` +
-		`<a href="#security">Securite</a><a href="#details">Details</a></nav>`)
+	p.WriteString(`<nav><a href="#overview">Overview</a><a href="#traffic">Traffic</a>` +
+		`<a href="#security">Security</a><a href="#details">Details</a></nav>`)
 
 	p.WriteString("<main>")
 
@@ -436,8 +436,8 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 		val, label, extra string
 	}
 	cards := []card{
-		{fmtCommaHTML(total), "Requetes", ""},
-		{fmtCommaHTML(uniqueIPs), "IPs uniques", ""},
+		{fmtCommaHTML(total), "Requests", ""},
+		{fmtCommaHTML(uniqueIPs), "Unique IPs", ""},
 		{fmtSize(totalBytes), "Volume", ""},
 		{fmtCommaHTML(bots), fmt.Sprintf("Bots (%d%%)", botPct), ""},
 	}
@@ -445,17 +445,17 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 	if total > 0 && s4xx > total/5 {
 		extra4xx = "alert"
 	}
-	cards = append(cards, card{fmtCommaHTML(s4xx), "Erreurs 4xx", extra4xx})
+	cards = append(cards, card{fmtCommaHTML(s4xx), "4xx errors", extra4xx})
 	extra5xx := "ok"
 	if s5xx > 0 {
 		extra5xx = "alert"
 	}
-	cards = append(cards, card{fmtCommaHTML(s5xx), "Erreurs 5xx", extra5xx})
+	cards = append(cards, card{fmtCommaHTML(s5xx), "5xx errors", extra5xx})
 	if threatsTotal > 0 {
-		cards = append(cards, card{fmtCommaHTML(threatsTotal), "Menaces", "alert"})
+		cards = append(cards, card{fmtCommaHTML(threatsTotal), "Threats", "alert"})
 	}
 	if suspectCount > 0 {
-		cards = append(cards, card{fmt.Sprintf("%d", suspectCount), "IPs suspectes", "alert"})
+		cards = append(cards, card{fmt.Sprintf("%d", suspectCount), "Suspect IPs", "alert"})
 	}
 	for _, c := range cards {
 		cls := ""
@@ -478,11 +478,11 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 		} else {
 			monthOn = " on"
 		}
-		fmt.Fprintf(&p, `<h2>Evolution
+		fmt.Fprintf(&p, `<h2>Timeline
 <div class="btn-group">
-<button class="tl-btn%s" data-m="day" onclick="setTL('day')">Jour</button>
-<button class="tl-btn%s" data-m="month" onclick="setTL('month')">Mois</button>
-<button class="tl-btn" data-m="all" onclick="setTL('all')">Tout</button>
+<button class="tl-btn%s" data-m="day" onclick="setTL('day')">Day</button>
+<button class="tl-btn%s" data-m="month" onclick="setTL('month')">Month</button>
+<button class="tl-btn" data-m="all" onclick="setTL('all')">All</button>
 </div></h2>
 <div class="tl-wrap">
 <div class="tl-chart" id="tl-chart"></div>
@@ -496,12 +496,12 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 		"LEGIT_BOT": "#3fb950", "SEO": "#d29922", "AI_BOT": "#e3b341", "UNKNOWN": "#484f58",
 	}
 	classLabels := map[string]string{
-		"HUMAN": "Humain", "PAYMENT": "Paiement", "MONITORING": "Monitoring",
-		"LEGIT_BOT": "Bots legitimes", "SEO": "SEO", "AI_BOT": "IA", "UNKNOWN": "Inconnu",
+		"HUMAN": "Human", "PAYMENT": "Payment", "MONITORING": "Monitoring",
+		"LEGIT_BOT": "Legitimate bots", "SEO": "SEO", "AI_BOT": "AI", "UNKNOWN": "Unknown",
 	}
 	classOrder := []string{"HUMAN", "PAYMENT", "MONITORING", "LEGIT_BOT", "SEO", "AI_BOT", "UNKNOWN"}
 
-	p.WriteString("<h2>Classification du trafic</h2>")
+	p.WriteString("<h2>Traffic classification</h2>")
 	p.WriteString(`<div class="cl-bar">`)
 	for _, key := range classOrder {
 		count := data.UAClassCounts[key]
@@ -537,7 +537,7 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 	p.WriteString(`<section id="traffic">`)
 
 	// Hours chart
-	p.WriteString("<h2>Trafic par heure</h2>")
+	p.WriteString("<h2>Hourly traffic</h2>")
 	maxH := 0
 	for _, c := range data.HourCounts {
 		if c > maxH {
@@ -584,7 +584,7 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 				}
 			}
 			if isProtectedIP(ip, data) {
-				tags += ` <span class="tag tag-protected">PROTEGE</span>`
+				tags += ` <span class="tag tag-protected">PROTECTED</span>`
 			}
 			cc := esc(geo[ip])
 			ipCell := esc(ip)
@@ -615,13 +615,13 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 			name := info[1]
 			if cc == "" {
 				cc = "??"
-				name = "Inconnu"
+				name = "Unknown"
 			}
 			key := cc + "|" + name
 			countryIPs[key]++
 			countryHits[key] += hits
 		}
-		fmt.Fprintf(&p, "<h2>Top %d pays</h2>", n)
+		fmt.Fprintf(&p, "<h2>Top %d countries</h2>", n)
 		items := topN(countryHits, n)
 		if len(items) > 0 {
 			maxV := items[0].Val
@@ -643,7 +643,7 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 				})
 				barVals = append(barVals, kv.Val)
 			}
-			p.WriteString(htmlTable([]string{"Hits", "%", "IPs", "Code", "Pays"}, rows, barVals, maxV, ""))
+			p.WriteString(htmlTable([]string{"Hits", "%", "IPs", "Code", "Country"}, rows, barVals, maxV, ""))
 		}
 	}
 
@@ -694,12 +694,12 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 
 	// ═══════════ SECTION 3: Securite ═══════════
 	p.WriteString(`<section id="security">`)
-	p.WriteString("<h2>Securite</h2>")
+	p.WriteString("<h2>Security</h2>")
 
 	if threatsTotal > 0 || len(data.IPThreats) > 0 {
 		threatLabels := map[string]string{
 			"SQL": "SQL Injection", "XSS": "XSS", "TRAVERSAL": "Path Traversal",
-			"SCAN": "Scanners", "WP": "WordPress", "SENSITIVE": "Fichiers sensibles",
+			"SCAN": "Scanners", "WP": "WordPress", "SENSITIVE": "Sensitive files",
 		}
 		threatOrder := []string{"SQL", "XSS", "TRAVERSAL", "SCAN", "WP", "SENSITIVE"}
 
@@ -708,8 +708,8 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 		if threatsTotal > 1 {
 			plural = "s"
 		}
-		fmt.Fprintf(&p, `<div class="title">%s menace%s detectee%s</div>`,
-			fmtCommaHTML(threatsTotal), plural, plural)
+		fmt.Fprintf(&p, `<div class="title">%s threat%s detected</div>`,
+			fmtCommaHTML(threatsTotal), plural)
 
 		for _, ttype := range threatOrder {
 			tcount := data.ThreatCounts[ttype]
@@ -746,7 +746,7 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 		sort.Slice(attackIPs, func(i, j int) bool { return attackIPs[i].score > attackIPs[j].score })
 
 		if len(attackIPs) > 0 {
-			fmt.Fprintf(&p, `<h3 style="color:#f85149;margin-top:16px">IPs a bannir (%d)</h3>`, len(attackIPs))
+			fmt.Fprintf(&p, `<h3 style="color:#f85149;margin-top:16px">IPs to ban (%d)</h3>`, len(attackIPs))
 			limit := n * 2
 			if limit > len(attackIPs) {
 				limit = len(attackIPs)
@@ -776,16 +776,16 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 				})
 				barVals = append(barVals, aip.score)
 			}
-			p.WriteString(htmlTable([]string{"Score", "Hits", "Pays", "IP", "Types", "Commande"}, rows, barVals, maxScore, "red"))
+			p.WriteString(htmlTable([]string{"Score", "Hits", "Country", "IP", "Types", "Command"}, rows, barVals, maxScore, "red"))
 		}
 	} else {
 		p.WriteString(`<div class="status green"><div class="icon">&#10003;</div>` +
-			`<div class="text">Aucune menace detectee</div></div>`)
+			`<div class="text">No threats detected</div></div>`)
 	}
 
 	// Protected IPs
 	if len(protectedIPs) > 0 {
-		p.WriteString(`<h3 style="margin-top:16px">IPs protegees</h3>`)
+		p.WriteString(`<h3 style="margin-top:16px">Protected IPs</h3>`)
 		sortedProt := make([]string, 0, len(protectedIPs))
 		for ip := range protectedIPs {
 			sortedProt = append(sortedProt, ip)
@@ -802,7 +802,7 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 			}
 			protLines = append(protLines, fmt.Sprintf("%s &mdash; %s hits &mdash;%s", esc(ip), fmtCommaHTML(hits), tags))
 		}
-		fmt.Fprintf(&p, `<div class="callout green"><b>Ces IPs ne sont jamais proposees au ban :</b><br>%s</div>`,
+		fmt.Fprintf(&p, `<div class="callout green"><b>These IPs will never be proposed for banning:</b><br>%s</div>`,
 			strings.Join(protLines, "<br>"))
 	}
 	p.WriteString("</section>")
@@ -830,13 +830,13 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 		}
 		p.WriteString(htmlTable([]string{"Hits", "User-Agent"}, rows, barVals, maxV, ""))
 	} else {
-		p.WriteString(`<div style="color:#8b949e;padding:12px">Aucun bot detecte</div>`)
+		p.WriteString(`<div style="color:#8b949e;padding:12px">No bots detected</div>`)
 	}
 
 	p.WriteString("</div><div>")
 
 	// 404s
-	p.WriteString("<h3>Top erreurs 404</h3>")
+	p.WriteString("<h3>Top 404 errors</h3>")
 	items404 := topN(data.URI404, n)
 	if len(items404) > 0 {
 		maxV := items404[0].Val
@@ -851,14 +851,14 @@ func generateHTMLReport(data *ParseData, cfg Cfg, files []string, elapsed float6
 		}
 		p.WriteString(htmlTable([]string{"Hits", "URI"}, rows, barVals, maxV, "yellow"))
 	} else {
-		p.WriteString(`<div style="color:#8b949e;padding:12px">Aucune erreur 404</div>`)
+		p.WriteString(`<div style="color:#8b949e;padding:12px">No 404 errors</div>`)
 	}
 
 	p.WriteString("</div></div></section>")
 	p.WriteString("</main>")
 
 	// Footer
-	fmt.Fprintf(&p, `<footer>an4log v%s &middot; Genere le %s</footer>`, version, now.Format("02/01/2006 a 15:04"))
+	fmt.Fprintf(&p, `<footer>an4log v%s &middot; Generated %s</footer>`, version, now.Format("2006-01-02 15:04"))
 
 	// JavaScript
 	defaultMode := "day"

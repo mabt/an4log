@@ -56,7 +56,7 @@ func computeCutoff(sinceStr string) (time.Time, bool) {
 	if t, err := time.Parse("2006-01-02", sinceStr); err == nil {
 		return t, true
 	}
-	warn(fmt.Sprintf("Format --since non reconnu: %s (utiliser: 30m, 2h, 1d, 2026-03-09)", sinceStr))
+	warn(fmt.Sprintf("Unrecognized --since format: %s (use: 30m, 2h, 1d, 2026-03-09)", sinceStr))
 	return time.Time{}, false
 }
 
@@ -104,6 +104,10 @@ func newParseData(groupBy string) *ParseData {
 		URIResponseTime: make(map[string][]int),
 		IPResponseTime:  make(map[string][]int),
 		ASNData:         make(map[string]string),
+		WebshellIPs:     make(map[string]int),
+		MalformedURLs:   make(map[string]int),
+		MalformedIPs:    make(map[string]int),
+		Storm404Minutes: make(map[string]int),
 	}
 }
 
@@ -136,7 +140,7 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 		}
 		r, err := openLog(fpath)
 		if err != nil {
-			warn(fmt.Sprintf("Erreur lecture %s: %v", fpath, err))
+			warn(fmt.Sprintf("Error reading %s: %v", fpath, err))
 			continue
 		}
 		sc := bufio.NewScanner(r)
@@ -315,6 +319,9 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 			ensureStatusMap(data.IPStatuses, ip)[status]++
 			if status == 404 {
 				data.URI404[uri]++
+				if tsOk && len(tsStr) >= 17 {
+					data.Storm404Minutes[tsStr[:17]]++
+				}
 			}
 			if status == 403 {
 				data.IP403[ip]++
@@ -376,6 +383,26 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 					ensureIntMap(data.ThreatIPs, tp.Name)[ip]++
 					hasThreat = true
 				}
+			}
+
+			// Webshell scans
+			for _, hint := range webshellHints {
+				if strings.Contains(uriLower, hint) {
+					if webshellRE.MatchString(uri) {
+						data.WebshellIPs[ip]++
+						ensureStringSet(data.IPThreats, ip)["WEBSHELL"] = true
+						data.ThreatCounts["WEBSHELL"]++
+						ensureIntMap(data.ThreatIPs, "WEBSHELL")[ip]++
+						hasThreat = true
+					}
+					break
+				}
+			}
+
+			// Malformed URLs (domain-in-path)
+			if malformedURLRE.MatchString(uri) {
+				data.MalformedURLs[uri]++
+				data.MalformedIPs[ip]++
 			}
 
 			// Scanners

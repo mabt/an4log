@@ -37,38 +37,38 @@ func run() int {
 	var excludeBots, outputIPs, showVersion bool
 	var suspectThreshold, uaThreshold, burstThreshold int
 
-	flag.Var(&files, "d", "Fichier(s) log (glob ok, repeatable, - pour stdin)")
-	flag.IntVar(&topN, "n", 0, "Nombre de resultats (defaut: 10)")
-	flag.StringVar(&geoipDB, "g", "", "Chemin base GeoLite2-Country.mmdb")
-	flag.StringVar(&whitelistFile, "w", "", "Fichier whitelist externe")
-	flag.StringVar(&configFile, "c", "", "Fichier de configuration")
-	flag.StringVar(&since, "since", "", "Filtrer depuis: 30m, 2h, 1d, 2026-03-09")
-	flag.StringVar(&filterIP, "ip", "", "Filtrer / profiler une IP")
-	flag.BoolVar(&excludeBots, "exclude-bots", false, "Exclure les bots connus")
-	flag.BoolVar(&outputIPs, "output-ips", false, "Sortie IPs brutes (pour pipe)")
-	flag.StringVar(&groupBy, "group-by", "", "Grouper par day ou month")
-	flag.StringVar(&htmlFile, "html", "", "Generer un rapport HTML")
-	flag.StringVar(&jsonFile, "json", "", "Exporter en JSON")
-	flag.StringVar(&csvFile, "csv", "", "Exporter en CSV")
-	flag.IntVar(&suspectThreshold, "suspect-threshold", 0, "Seuil IPs suspectes")
-	flag.IntVar(&uaThreshold, "ua-threshold", 0, "Seuil IPs sans UA")
-	flag.IntVar(&burstThreshold, "burst-threshold", 0, "Seuil burst req/min")
-	flag.BoolVar(&showVersion, "v", false, "Afficher la version")
-	flag.BoolVar(&showVersion, "version", false, "Afficher la version")
+	flag.Var(&files, "d", "Log file(s) (glob ok, repeatable, - for stdin)")
+	flag.IntVar(&topN, "n", 0, "Number of results (default: 10)")
+	flag.StringVar(&geoipDB, "g", "", "Path to GeoLite2-Country.mmdb")
+	flag.StringVar(&whitelistFile, "w", "", "External whitelist file")
+	flag.StringVar(&configFile, "c", "", "Configuration file")
+	flag.StringVar(&since, "since", "", "Filter since: 30m, 2h, 1d, 2026-03-09")
+	flag.StringVar(&filterIP, "ip", "", "Filter / profile an IP")
+	flag.BoolVar(&excludeBots, "exclude-bots", false, "Exclude known bots")
+	flag.BoolVar(&outputIPs, "output-ips", false, "Raw IP output (for piping)")
+	flag.StringVar(&groupBy, "group-by", "", "Group by day or month")
+	flag.StringVar(&htmlFile, "html", "", "Generate HTML report")
+	flag.StringVar(&jsonFile, "json", "", "Export as JSON")
+	flag.StringVar(&csvFile, "csv", "", "Export as CSV")
+	flag.IntVar(&suspectThreshold, "suspect-threshold", 0, "Suspect IPs threshold")
+	flag.IntVar(&uaThreshold, "ua-threshold", 0, "No UA IPs threshold")
+	flag.IntVar(&burstThreshold, "burst-threshold", 0, "Burst threshold req/min")
+	flag.BoolVar(&showVersion, "v", false, "Show version")
+	flag.BoolVar(&showVersion, "version", false, "Show version")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "an4log v%s - Analyseur de logs Apache/Nginx\n\n", version)
+		fmt.Fprintf(os.Stderr, "an4log v%s - Apache/Nginx log analyzer\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage: an4log -d FILE [options] [COMMANDE]\n\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, `
-Commandes:
+Commands:
   all, summary, classify, visitors, vhost, response-time, asn,
   ip, ua, uri, prefix, status, heavy, methods, timeline, hour, minute,
   slow, 404, 403, crawlers, suspect, empty-ua, burst, threat, actions,
-  sql, xss, traversal, scanners, wp-attack, post-flood, countries,
-  setup-geoip
+  sql, xss, traversal, scanners, wp-attack, webshell, post-flood,
+  malformed, storm-404, countries, setup-geoip
 
-Exemples:
+Examples:
   an4log -d /var/log/apache2/access.log
   an4log -d access.log -n 20 status
   an4log -d access.log -since 1h threat
@@ -89,7 +89,7 @@ Exemples:
 		return 0
 	}
 
-	// Parse remaining args for command and extra files
+	// Parse remaining args for command, extra files, and late flags
 	command := "all"
 	validCmds := map[string]bool{
 		"all": true, "summary": true, "classify": true, "visitors": true, "vhost": true,
@@ -100,12 +100,64 @@ Exemples:
 		"empty-ua": true, "burst": true, "threat": true, "actions": true, "sql": true,
 		"xss": true, "traversal": true, "scanners": true, "wp-attack": true,
 		"post-flood": true, "countries": true, "setup-geoip": true, "ip-profile": true,
+		"webshell": true, "malformed": true, "storm-404": true,
+	}
+	// Late flags: flags that appear after positional args (without -d)
+	lateFlags := map[string]bool{
+		"-since": true, "-ip": true, "-n": true, "-g": true, "-w": true, "-c": true,
+		"-group-by": true, "-html": true, "-json": true, "-csv": true,
+		"-exclude-bots": true, "-output-ips": true,
+		"-suspect-threshold": true, "-ua-threshold": true, "-burst-threshold": true,
 	}
 	remaining := flag.Args()
 	var extraFiles []string
-	for _, arg := range remaining {
+	for i := 0; i < len(remaining); i++ {
+		arg := remaining[i]
 		if validCmds[arg] {
 			command = arg
+		} else if lateFlags[arg] {
+			// Handle late flags
+			switch arg {
+			case "-exclude-bots":
+				excludeBots = true
+			case "-output-ips":
+				outputIPs = true
+			default:
+				if i+1 < len(remaining) {
+					i++
+					val := remaining[i]
+					switch arg {
+					case "-since":
+						since = val
+					case "-ip":
+						filterIP = val
+					case "-n":
+						fmt.Sscanf(val, "%d", &topN)
+					case "-g":
+						geoipDB = val
+					case "-w":
+						whitelistFile = val
+					case "-c":
+						configFile = val
+					case "-group-by":
+						groupBy = val
+					case "-html":
+						htmlFile = val
+					case "-json":
+						jsonFile = val
+					case "-csv":
+						csvFile = val
+					case "-suspect-threshold":
+						fmt.Sscanf(val, "%d", &suspectThreshold)
+					case "-ua-threshold":
+						fmt.Sscanf(val, "%d", &uaThreshold)
+					case "-burst-threshold":
+						fmt.Sscanf(val, "%d", &burstThreshold)
+					}
+				} else {
+					warn(fmt.Sprintf("Option %s missing value", arg))
+				}
+			}
 		} else {
 			extraFiles = append(extraFiles, arg)
 		}
@@ -146,7 +198,7 @@ Exemples:
 
 	// Validate -d
 	if len(files) == 0 {
-		fmt.Fprintf(os.Stderr, "Erreur: fichier log requis (-d <fichier>)\n")
+		fmt.Fprintf(os.Stderr, "Error: log file required (-d <file>)\n")
 		flag.Usage()
 		return 2
 	}
@@ -159,7 +211,7 @@ Exemples:
 	} else {
 		resolved = resolveFiles(files)
 		if len(resolved) == 0 {
-			fmt.Fprintf(os.Stderr, "%sErreur: aucun fichier log trouve%s\n", cRed, cReset)
+			fmt.Fprintf(os.Stderr, "%sError: no log files found%s\n", cRed, cReset)
 			return 2
 		}
 		if !validateFormat(resolved) {
@@ -171,9 +223,9 @@ Exemples:
 	if !outputIPs {
 		fmt.Printf("%san4log v%s%s\n", cBold, version, cReset)
 		if len(resolved) == 1 {
-			fmt.Printf("Fichier: %s%s%s\n", cCyan, resolved[0], cReset)
+			fmt.Printf("File: %s%s%s\n", cCyan, resolved[0], cReset)
 		} else {
-			fmt.Printf("Fichiers: %s%d%s fichiers\n", cBold, len(resolved), cReset)
+			fmt.Printf("Files: %s%d%s files\n", cBold, len(resolved), cReset)
 			limit := 5
 			if len(resolved) < limit {
 				limit = len(resolved)
@@ -182,7 +234,7 @@ Exemples:
 				fmt.Printf("  %s%s%s\n", cCyan, f, cReset)
 			}
 			if len(resolved) > 5 {
-				fmt.Printf("  ... +%d autres\n", len(resolved)-5)
+				fmt.Printf("  ... +%d more\n", len(resolved)-5)
 			}
 		}
 	}
@@ -210,21 +262,21 @@ Exemples:
 		if isStdin {
 			sizeStr = "stdin"
 		}
-		fmt.Printf("Lignes: %s%s%s | Taille: %s%s%s | Parse: %s%.2fs%s\n",
+		fmt.Printf("Lines: %s%s%s | Size: %s%s%s | Parse: %s%.2fs%s\n",
 			cBold, fmtComma(data.Total), cReset,
 			cBold, sizeStr, cReset,
 			cBold, elapsed, cReset)
 		if data.ParseErrors > 0 {
-			warn(fmt.Sprintf("%d ligne(s) non parsee(s)", data.ParseErrors))
+			warn(fmt.Sprintf("%d unparsed line(s)", data.ParseErrors))
 		}
 		if since != "" {
-			fmt.Printf("Filtre: %s--since %s%s\n", cYellow, since, cReset)
+			fmt.Printf("Filter: %s--since %s%s\n", cYellow, since, cReset)
 		}
 		if filterIP != "" {
-			fmt.Printf("Filtre IP: %s%s%s\n", cYellow, filterIP, cReset)
+			fmt.Printf("IP filter: %s%s%s\n", cYellow, filterIP, cReset)
 		}
 		if excludeBots {
-			fmt.Printf("Filtre: %s--exclude-bots%s\n", cYellow, cReset)
+			fmt.Printf("Filter: %s--exclude-bots%s\n", cYellow, cReset)
 		}
 	}
 
@@ -260,9 +312,9 @@ Exemples:
 	if htmlFile != "" {
 		html := generateHTMLReport(data, cfg, resolved, elapsed, geo, wlRaw, wlNets, geoFull)
 		if err := os.WriteFile(htmlFile, []byte(html), 0644); err != nil {
-			warn(fmt.Sprintf("Erreur ecriture HTML: %v", err))
+			warn(fmt.Sprintf("Error writing HTML: %v", err))
 		} else {
-			fmt.Printf("%sRapport HTML genere: %s%s\n", cGreen, htmlFile, cReset)
+			fmt.Printf("%sHTML report generated: %s%s\n", cGreen, htmlFile, cReset)
 		}
 		if !outputIPs && command == "all" {
 			if len(data.ThreatCounts) > 0 {
@@ -275,7 +327,7 @@ Exemples:
 	// JSON export
 	if jsonFile != "" {
 		if err := writeExport(jsonFile, "json", data, cfg); err != nil {
-			warn(fmt.Sprintf("Erreur ecriture JSON: %v", err))
+			warn(fmt.Sprintf("Error writing JSON: %v", err))
 		} else {
 			fmt.Printf("%sExport JSON: %s%s\n", cGreen, jsonFile, cReset)
 		}
@@ -285,7 +337,7 @@ Exemples:
 	if csvFile != "" {
 		ensureProfileData(data)
 		if err := writeExport(csvFile, "csv", data, cfg); err != nil {
-			warn(fmt.Sprintf("Erreur ecriture CSV: %v", err))
+			warn(fmt.Sprintf("Error writing CSV: %v", err))
 		} else {
 			fmt.Printf("%sExport CSV: %s%s\n", cGreen, csvFile, cReset)
 		}
@@ -365,8 +417,14 @@ Exemples:
 		cmdASN(data, cfg)
 	case "ip-profile":
 		cmdIPProfile(data, cfg, filterIP)
+	case "webshell":
+		cmdWebshell(data, cfg)
+	case "malformed":
+		cmdMalformed(data, cfg)
+	case "storm-404":
+		cmdStorm404(data, cfg)
 	default:
-		fmt.Fprintf(os.Stderr, "%sCommande inconnue: %s%s\n", cRed, command, cReset)
+		fmt.Fprintf(os.Stderr, "%sUnknown command: %s%s\n", cRed, command, cReset)
 		flag.Usage()
 		return 2
 	}
@@ -438,11 +496,11 @@ func resolveGeoIPFull(ipCounts map[string]int, dbPath string) map[string][2]stri
 		if err := db.Lookup(pip, &r); err == nil && r.Country.ISOCode != "" {
 			name := r.Country.Names["en"]
 			if name == "" {
-				name = "Inconnu"
+				name = "Unknown"
 			}
 			result[ip] = [2]string{r.Country.ISOCode, name}
 		} else {
-			result[ip] = [2]string{"??", "Inconnu"}
+			result[ip] = [2]string{"??", "Unknown"}
 		}
 	}
 	return result
@@ -454,20 +512,20 @@ func downloadDB(name, url, destPath string) bool {
 	if info, err := os.Stat(destPath); err == nil {
 		age := int(time.Since(info.ModTime()).Hours() / 24)
 		if age < 30 {
-			fmt.Printf("  %s%s deja presente: %s%s\n", cGreen, name, destPath, cReset)
-			fmt.Printf("  Mise a jour il y a %d jour(s)\n", age)
+			fmt.Printf("  %s%s already present: %s%s\n", cGreen, name, destPath, cReset)
+			fmt.Printf("  Updated %d day(s) ago\n", age)
 			return true
 		}
-		fmt.Printf("  %s%s > 30 jours, mise a jour...%s\n", cYellow, name, cReset)
+		fmt.Printf("  %s%s > 30 days, updating...%s\n", cYellow, name, cReset)
 	}
 
 	fmt.Printf("  Destination: %s\n", destPath)
-	fmt.Printf("  %sTelechargement %s...%s\n", cCyan, name, cReset)
+	fmt.Printf("  %sDownloading %s...%s\n", cCyan, name, cReset)
 
 	os.MkdirAll(filepath.Dir(destPath), 0755)
 	resp, err := http.Get(url)
 	if err != nil {
-		warn(fmt.Sprintf("Echec du telechargement: %v", err))
+		warn(fmt.Sprintf("Download failed: %v", err))
 		return false
 	}
 	defer resp.Body.Close()
@@ -475,19 +533,19 @@ func downloadDB(name, url, destPath string) bool {
 	tmp := destPath + ".tmp"
 	f, err := os.Create(tmp)
 	if err != nil {
-		warn(fmt.Sprintf("Erreur creation fichier: %v", err))
+		warn(fmt.Sprintf("Error creating file: %v", err))
 		return false
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
 		os.Remove(tmp)
-		warn(fmt.Sprintf("Erreur ecriture: %v", err))
+		warn(fmt.Sprintf("Write error: %v", err))
 		return false
 	}
 	f.Close()
 	if err := os.Rename(tmp, destPath); err != nil {
 		os.Remove(tmp)
-		warn(fmt.Sprintf("Erreur rename: %v", err))
+		warn(fmt.Sprintf("Rename error: %v", err))
 		return false
 	}
 
@@ -502,7 +560,7 @@ func cmdSetupGeoIP(cfg Cfg) {
 		baseDir = "/usr/share/GeoIP"
 	}
 
-	header("Installation bases GeoIP")
+	header("GeoIP database setup")
 	fmt.Printf("  Source: github.com/P3TERX/GeoLite.mmdb\n\n")
 
 	countryPath := cfgStr(cfg, "geoip_db", "")
