@@ -1,6 +1,6 @@
-# an4log v3.1.0
+# an4log v3.2.0
 
-Analyseur de logs Apache/Nginx. Binaire unique statique, zero dependance, deploiement instantane.
+Apache/Nginx log analyzer. Single static binary, zero dependencies, instant deployment.
 
 ![an4log demo](demo.gif)
 
@@ -19,11 +19,11 @@ chmod +x /usr/local/bin/an4log
 curl -Lo /usr/local/bin/an4log https://github.com/mabt/an4log/releases/latest/download/an4log-darwin-arm64
 chmod +x /usr/local/bin/an4log
 
-# GeoIP + ASN (optionnel, pour pays et reseaux)
+# GeoIP + ASN (optional, for country and network data)
 an4log setup-geoip
 ```
 
-### Compiler depuis les sources
+### Build from source
 
 ```bash
 git clone https://github.com/mabt/an4log.git
@@ -31,148 +31,154 @@ cd an4log
 CGO_ENABLED=0 go build -ldflags '-s -w' -o an4log .
 ```
 
-## Utilisation
+## Usage
 
 ```bash
-# Analyse complete
+# Full analysis
 an4log -d /var/log/nginx/access.log
 
-# Depuis stdin (pipe)
+# From stdin (pipe)
 cat access.log | an4log -d - summary
 
-# Multi-fichiers (glob)
+# Multiple files (glob)
 an4log -d /var/log/nginx/*access*.log
 
-# Top 20 codes HTTP
+# Top 20 HTTP codes
 an4log -d access.log -n 20 status
 
-# Menaces de la derniere heure
+# Threats from the last hour
 an4log -d access.log -since 1h threat
 
-# Profiler une IP
+# Profile an IP
 an4log -ip 1.2.3.4 -d access.log
 
-# Stats par jour / mois
+# Stats by day / month
 an4log -d access*.log -group-by day
 an4log -d access*.log -group-by month
 
-# Rapport HTML interactif
-an4log -d access.log -html rapport.html
+# Interactive HTML report
+an4log -d access.log -html report.html
 
-# Export JSON / CSV
+# JSON / CSV export
 an4log -d access.log -json export.json
 an4log -d access.log -csv export.csv
 
-# Suggestions de blocage (iptables/fail2ban/ipset)
+# Blocking suggestions (iptables/fail2ban/ipset)
 an4log -d access.log actions
 
-# IPs brutes pour pipe vers iptables/ipset
+# Raw IPs for piping to iptables/ipset
 an4log -d access.log actions -output-ips
 
-# Exclure les bots
+# Exclude bots
 an4log -d access.log -exclude-bots
 ```
 
-## Commandes disponibles
+## Available commands
 
-### Vue d'ensemble
-| Commande | Description |
-|----------|-------------|
-| `all` | Toutes les analyses (defaut) |
-| `summary` | Dashboard rapide (stats + alertes) |
-| `classify` | Repartition du trafic par categorie (humain, bots, paiement, monitoring, SEO, IA) |
-| `visitors` | Visiteurs uniques (IP + User-Agent) |
-| `timeline` | Trafic par jour ou mois (avec `-group-by`) |
+### Overview
+| Command | Description |
+|---------|-------------|
+| `all` | All analyses (default) |
+| `summary` | Quick dashboard (stats + alerts) |
+| `classify` | Traffic breakdown by category (human, bots, payment, monitoring, SEO, AI) |
+| `visitors` | Unique visitors (IP + User-Agent) |
+| `timeline` | Traffic by day or month (with `-group-by`) |
 
-### Top N (trafic)
-| Commande | Description |
-|----------|-------------|
-| `ip` | Top IPs par nombre de requetes |
-| `uri` | Top URIs (sans query string) |
+### Top N (traffic)
+| Command | Description |
+|---------|-------------|
+| `ip` | Top IPs by request count |
+| `uri` | Top URIs (without query string) |
 | `ua` | Top User-Agents |
-| `status` | Top codes HTTP |
-| `heavy` | Top IPs par volume transfere |
-| `methods` | Repartition des methodes HTTP |
-| `vhost` | Virtual hosts (auto-detecte) |
-| `countries` | Top pays par nombre de hits (GeoIP) |
-| `asn` | Top reseaux / ASN (OVH, AWS, Google...) |
+| `status` | Top HTTP status codes |
+| `heavy` | Top IPs by transferred volume |
+| `methods` | HTTP methods breakdown |
+| `vhost` | Virtual hosts (auto-detected) |
+| `countries` | Top countries by hits (GeoIP) |
+| `asn` | Top networks / ASN (OVH, AWS, Google...) |
 
-### Temporel
-| Commande | Description |
-|----------|-------------|
-| `hour` | Repartition par heure |
-| `minute` | Pics de trafic par minute |
-| `slow` | Requetes les plus lentes |
-| `response-time` | Temps de reponse par URI (p50, p95, p99) |
+### Time-based
+| Command | Description |
+|---------|-------------|
+| `hour` | Distribution by hour |
+| `minute` | Traffic peaks per minute |
+| `slow` | Slowest requests |
+| `response-time` | Response time by URI (p50, p95, p99) |
 
-### Comportement suspect
-| Commande | Description |
-|----------|-------------|
-| `suspect` | IPs suspectes (> seuil de requetes) |
-| `burst` | Detection de burst par IP/minute |
-| `post-flood` | Flood de requetes POST par IP |
-| `empty-ua` | Requetes sans User-Agent |
-| `prefix` | Top prefixes IP (xxx.xxx.*) |
-| `crawlers` | Bots/crawlers detectes |
-| `404` | Top URIs en erreur 404 |
-| `403` | Top IPs bloquees (403) |
+### Suspicious behavior
+| Command | Description |
+|---------|-------------|
+| `suspect` | Suspect IPs (above request threshold) |
+| `burst` | Burst detection per IP/minute |
+| `post-flood` | POST request flood per IP |
+| `empty-ua` | Requests without User-Agent |
+| `prefix` | Top IP prefixes (xxx.xxx.*) |
+| `crawlers` | Detected bots/crawlers |
+| `404` | Top 404 URIs |
+| `403` | Top blocked IPs (403) |
 
-### Securite
-| Commande | Description |
-|----------|-------------|
-| `threat` | Vue combinee de toutes les menaces |
-| `actions` | Suggestions iptables / fail2ban / ipset (score >= 10) |
-| `sql` | Tentatives d'injection SQL |
-| `xss` | Tentatives XSS |
-| `traversal` | Tentatives de path traversal (double `../` ou cible dangereuse) |
-| `scanners` | Detection de scanners (nikto, sqlmap...) |
-| `wp-attack` | Attaques WordPress (hors wp-cron) |
+### Security
+| Command | Description |
+|---------|-------------|
+| `threat` | Combined view of all threats |
+| `actions` | iptables / fail2ban / ipset suggestions (score >= 10) |
+| `sql` | SQL injection attempts |
+| `xss` | XSS attempts |
+| `traversal` | Path traversal attempts (double `../` or sensitive targets) |
+| `scanners` | Scanner detection (nikto, sqlmap...) |
+| `wp-attack` | WordPress attacks (excludes wp-cron) |
+| `webshell` | Webshell scan detection (txets.php, c99.php, r57.php...) |
+| `malformed` | Malformed URLs (domain-in-path, e.g. `/example.com/wp-content/...`) |
+| `storm-404` | 404 storm detection (burst of 404s per minute) |
 
 ## Options
 
 | Option | Description |
 |--------|-------------|
-| `-d FILE` | Fichier(s) log (glob ok, repeatable, `-` pour stdin) |
-| `-n N` | Nombre de resultats (defaut: 10) |
-| `-g PATH` | Chemin base GeoLite2-Country.mmdb |
-| `-w FILE` | Fichier whitelist externe |
-| `-c FILE` | Fichier de configuration |
-| `-since` | Filtrer depuis: `30m`, `2h`, `1d`, `2026-03-09` |
-| `-ip` | Filtrer / profiler une IP |
-| `-group-by` | Grouper par `day` ou `month` |
-| `-html FILE` | Generer un rapport HTML interactif |
-| `-json FILE` | Exporter en JSON |
-| `-csv FILE` | Exporter en CSV (une ligne par IP) |
-| `-exclude-bots` | Exclure les bots connus |
-| `-output-ips` | Sortie IPs brutes (pour pipe) |
-| `-suspect-threshold N` | Seuil IPs suspectes (defaut: 500) |
-| `-ua-threshold N` | Seuil IPs sans UA (defaut: 50) |
-| `-burst-threshold N` | Seuil burst req/min (defaut: 30) |
+| `-d FILE` | Log file(s) (glob ok, repeatable, `-` for stdin) |
+| `-n N` | Number of results (default: 10) |
+| `-g PATH` | Path to GeoLite2-Country.mmdb |
+| `-w FILE` | External whitelist file |
+| `-c FILE` | Configuration file |
+| `-since` | Filter since: `30m`, `2h`, `1d`, `2026-03-09` |
+| `-ip` | Filter / profile an IP |
+| `-group-by` | Group by `day` or `month` |
+| `-html FILE` | Generate interactive HTML report |
+| `-json FILE` | Export as JSON |
+| `-csv FILE` | Export as CSV (one row per IP) |
+| `-exclude-bots` | Exclude known bots |
+| `-output-ips` | Raw IP output (for piping) |
+| `-suspect-threshold N` | Suspect IPs threshold (default: 500) |
+| `-ua-threshold N` | No UA IPs threshold (default: 50) |
+| `-burst-threshold N` | Burst threshold req/min (default: 30) |
 
-## Rapport HTML
+## HTML report
 
-Le rapport HTML est autonome (CSS + JS inline) et inclut :
-- KPIs (requetes, IPs, volume, bots, erreurs, menaces)
-- Timeline interactive avec boutons **Jour / Mois / Tout**
-- Classification du trafic (humain, paiement, monitoring, bots, SEO, IA)
-- Trafic par heure (bar chart)
-- Top IPs, URIs, codes HTTP (tableaux triables)
-- Top pays (si GeoIP disponible)
-- Securite (menaces, IPs a bannir)
-- Bots et erreurs 404
+The HTML report is self-contained (inline CSS + JS) and includes:
+- KPIs (requests, IPs, volume, bots, errors, threats)
+- Interactive timeline with **Day / Month / All** buttons
+- Traffic classification (human, payment, monitoring, bots, SEO, AI)
+- Hourly traffic (bar chart)
+- Top IPs, URIs, HTTP codes (sortable tables)
+- Top countries (if GeoIP available)
+- Security (threats, IPs to ban)
+- Bots and 404 errors
 
 ## Detection
 
-- **Menaces** : SQL injection, XSS, path traversal (double `../` ou cible sensible), WordPress (hors wp-cron), fichiers sensibles (`/.env`, `.git/HEAD`, `.htaccess`...)
-- **Scanners** : nikto, sqlmap, nmap, nuclei, wpscan...
-- **Seuil de ban** : seules les IPs avec un score >= 10 sont suggerees dans `actions` (evite les faux positifs sur un hit isole)
-- **Classification UA** : paiement (Lyra, PayPal, Stripe...), monitoring (Uptime-Kuma, Sansec...), bots legitimes (Google, Bing...), SEO, IA
-- **IPs protegees** : les IPs de paiement et monitoring ne sont jamais suggerees au ban
-- **ASN** : identification du reseau source (OVH, AWS, Google, Cloudflare...)
+- **Threats**: SQL injection, XSS, path traversal (double `../` or sensitive targets), WordPress (excludes wp-cron), sensitive files (`/.env`, `.git/HEAD`, `.htaccess`...)
+- **Webshell scans**: txets.php, c99.php, r57.php, alfashell.php, adminer.php...
+- **Malformed URLs**: domain-in-path patterns (`/example.com/wp-content/...`) typically caused by bots stripping `https://`
+- **404 storms**: burst of 404 errors per minute that can exhaust PHP-FPM workers
+- **Scanners**: nikto, sqlmap, nmap, nuclei, wpscan...
+- **Ban threshold**: only IPs with score >= 10 are suggested in `actions` (avoids false positives on isolated hits)
+- **UA classification**: payment (Lyra, PayPal, Stripe...), monitoring (Uptime-Kuma, Sansec...), legitimate bots (Google, Bing...), SEO, AI
+- **Protected IPs**: payment and monitoring IPs are never suggested for banning
+- **ASN**: source network identification (OVH, AWS, Google, Cloudflare...)
 
 ## Configuration
 
-Fichier `/etc/an4log/an4log.conf` ou `~/.an4log.conf` :
+File `/etc/an4log/an4log.conf` or `~/.an4log.conf`:
 
 ```ini
 top_n = 10
@@ -183,21 +189,21 @@ whitelist = 5.39.38.0/24, 5.22.211.82
 geoip_db = /usr/share/GeoIP/GeoLite2-Country.mmdb
 ```
 
-## Code retour
+## Exit codes
 
-| Code | Signification |
-|------|---------------|
-| `0` | Aucune menace detectee |
-| `1` | Menaces detectees |
-| `2` | Erreur (fichier introuvable, format invalide) |
+| Code | Meaning |
+|------|---------|
+| `0` | No threats detected |
+| `1` | Threats detected |
+| `2` | Error (file not found, invalid format) |
 
 ## Notes
 
-- Binaire statique ~6 MB, aucune dependance runtime
-- Lecture depuis stdin (`-d -`) pour piper depuis `tail`, `zcat`, etc.
-- Auto-detection du format vhost (vhost:port IP ... vs IP ...)
-- Temps de reponse: ajouter `%D` (Apache) ou `$request_time` (Nginx) en fin de log
-- Les fichiers `*.error.log` sont automatiquement ignores
-- La whitelist fail2ban (`/etc/fail2ban/jail.d/whitelist-ips.conf`) est chargee automatiquement
-- Supporte les fichiers `.gz`
-- Parsing single-pass optimise
+- Static binary ~10 MB, no runtime dependencies
+- Reads from stdin (`-d -`) for piping from `tail`, `zcat`, etc.
+- Auto-detects vhost format (vhost:port IP ... vs IP ...)
+- Response time: add `%D` (Apache) or `$request_time` (Nginx) at end of log format
+- `*.error.log` files are automatically ignored
+- fail2ban whitelist (`/etc/fail2ban/jail.d/whitelist-ips.conf`) is loaded automatically
+- Supports `.gz` files
+- Optimized single-pass parsing
