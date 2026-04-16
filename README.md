@@ -185,7 +185,7 @@ top_n = 10
 suspect_threshold = 500
 ua_threshold = 50
 burst_threshold = 30
-whitelist = 5.39.38.0/24, 5.22.211.82
+whitelist = 10.0.0.0/8, 192.168.1.1
 geoip_db = /usr/share/GeoIP/GeoLite2-Country.mmdb
 ```
 

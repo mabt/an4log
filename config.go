@@ -28,7 +28,7 @@ var defaultCfg = Cfg{
 	"burst_threshold":    30,
 	"post_flood_threshold": 200,
 	"geoip_db":           "",
-	"whitelist":          []string{"5.39.38.0/24", "5.22.211.82"},
+	"whitelist":          []string{},
 	"f2b_whitelist_path": "/etc/fail2ban/jail.d/whitelist-ips.conf",
 }
 
