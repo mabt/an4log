@@ -312,7 +312,20 @@ func cmdSummary(data *ParseData, cfg Cfg) {
 	if storm404Count > 0 {
 		fmt.Printf("  %s!! %d 404 storm(s) detected (> %d 404/min)%s\n", cRed, storm404Count, burstThresh404, cReset)
 	}
-	if suspect == 0 && threats == 0 && err5Pct <= 5 && len(data.WebshellIPs) == 0 && malformedTotal == 0 && storm404Count == 0 {
+	facetTotal := 0
+	for _, c := range data.FacetURIs {
+		if c >= 100 {
+			facetTotal += c
+		}
+	}
+	facetPct := 0
+	if total > 0 {
+		facetPct = facetTotal * 100 / total
+	}
+	if facetPct > 10 {
+		fmt.Printf("  %s!! %s faceted/filtered requests (%d%% of traffic)%s\n", cYellow, fmtComma(facetTotal), facetPct, cReset)
+	}
+	if suspect == 0 && threats == 0 && err5Pct <= 5 && len(data.WebshellIPs) == 0 && malformedTotal == 0 && storm404Count == 0 && facetPct <= 10 {
 		fmt.Printf("  %sNo alerts%s\n", cGreen, cReset)
 	}
 
@@ -1083,6 +1096,96 @@ func cmdStorm404(data *ParseData, cfg Cfg) {
 	}
 }
 
+func cmdFacets(data *ParseData, cfg Cfg) {
+	// Only show URIs with significant facet traffic (> 1% of total or > 100 hits)
+	minHits := data.Total / 100
+	if minHits < 100 {
+		minHits = 100
+	}
+
+	type facetEntry struct {
+		uri      string
+		hits     int
+		variants int
+		params   map[string]int
+		ips      map[string]int
+		statuses map[int]int
+	}
+
+	var entries []facetEntry
+	for uri, hits := range data.FacetURIs {
+		if hits < minHits {
+			continue
+		}
+		entries = append(entries, facetEntry{
+			uri:      uri,
+			hits:     hits,
+			variants: data.FacetVariants[uri],
+			params:   data.FacetParams[uri],
+			ips:      data.FacetIPs[uri],
+			statuses: data.FacetStatuses[uri],
+		})
+	}
+
+	if len(entries) == 0 {
+		return
+	}
+
+	sort.Slice(entries, func(i, j int) bool { return entries[i].hits > entries[j].hits })
+
+	header("Faceted navigation / query strings")
+
+	totalFacet := 0
+	for _, e := range entries {
+		totalFacet += e.hits
+	}
+	fmt.Printf("  %s%s requests with query parameters (%s of traffic)%s\n\n",
+		cBold, fmtComma(totalFacet), fmtPct(totalFacet, data.Total), cReset)
+
+	n := cfgInt(cfg, "top_n", 10)
+	for i, e := range entries {
+		if i >= n {
+			break
+		}
+		fmt.Printf("  %s%s%s  %s  %s\n", cCyan, fmtComma(e.hits), cReset, fmtPct(e.hits, data.Total), fmtKey(e.uri, 70))
+
+		// Params
+		params := topN(e.params, 5)
+		var paramNames []string
+		for _, p := range params {
+			paramNames = append(paramNames, fmt.Sprintf("%s(%s)", p.Key, fmtComma(p.Val)))
+		}
+		if len(paramNames) > 0 {
+			fmt.Printf("           params: %s\n", strings.Join(paramNames, ", "))
+		}
+
+		// Statuses
+		statusParts := topNInt(e.statuses, 5)
+		var statusStrs []string
+		for _, s := range statusParts {
+			statusStrs = append(statusStrs, fmt.Sprintf("%d:%s", s.Key, fmtComma(s.Val)))
+		}
+		if len(statusStrs) > 0 {
+			fmt.Printf("           status: %s\n", strings.Join(statusStrs, "  "))
+		}
+
+		// Unique IPs
+		fmt.Printf("           IPs: %s unique", fmtComma(len(e.ips)))
+
+		// Top 3 IPs
+		topIPs := topN(e.ips, 3)
+		var ipStrs []string
+		for _, tip := range topIPs {
+			ipStrs = append(ipStrs, fmt.Sprintf("%s(%s)", fmtKey(tip.Key, 30), fmtComma(tip.Val)))
+		}
+		if len(ipStrs) > 0 {
+			fmt.Printf("  top: %s", strings.Join(ipStrs, ", "))
+		}
+		fmt.Println()
+		fmt.Println()
+	}
+}
+
 func cmdAll(ctx *CmdCtx) {
 	data, cfg := ctx.Data, ctx.Cfg
 	cmdSummary(data, cfg)
@@ -1115,6 +1218,11 @@ func cmdAll(ctx *CmdCtx) {
 	cmd403(data, cfg)
 	cmdBurst(data, cfg)
 	cmdASN(data, cfg)
+
+	// Faceted navigation
+	if len(data.FacetURIs) > 0 {
+		cmdFacets(data, cfg)
+	}
 
 	// New detections
 	if len(data.MalformedURLs) > 0 {

@@ -108,6 +108,11 @@ func newParseData(groupBy string) *ParseData {
 		MalformedURLs:   make(map[string]int),
 		MalformedIPs:    make(map[string]int),
 		Storm404Minutes: make(map[string]int),
+		FacetURIs:       make(map[string]int),
+		FacetParams:     make(map[string]map[string]int),
+		FacetVariants:   make(map[string]int),
+		FacetIPs:        make(map[string]map[string]int),
+		FacetStatuses:   make(map[string]map[int]int),
 	}
 }
 
@@ -281,11 +286,46 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 
 			// URI (strip query)
 			cleanURI := uri
+			queryStr := ""
 			if idx := strings.IndexByte(uri, '?'); idx > 0 {
 				cleanURI = uri[:idx]
+				queryStr = uri[idx+1:]
 			}
 			if len(cleanURI) > 1 {
 				data.URICounts[cleanURI]++
+			}
+
+			// Facet/filter tracking
+			if queryStr != "" && len(cleanURI) > 1 {
+				data.FacetURIs[cleanURI]++
+				// Track unique query string variants (cap at 10000 to limit memory)
+				if data.FacetVariants[cleanURI] < 10000 {
+					data.FacetVariants[cleanURI]++
+				}
+				// Extract param names
+				if data.FacetParams[cleanURI] == nil {
+					data.FacetParams[cleanURI] = make(map[string]int)
+				}
+				for _, p := range strings.Split(queryStr, "&") {
+					if eq := strings.IndexByte(p, '='); eq > 0 {
+						name := p[:eq]
+						// Skip session/tracking params
+						if name == "___SID" || name == "_" || name == "utm_source" || name == "utm_medium" || name == "utm_campaign" || name == "gclid" || name == "fbclid" {
+							continue
+						}
+						data.FacetParams[cleanURI][name]++
+					}
+				}
+				// Track IPs hitting facets
+				if data.FacetIPs[cleanURI] == nil {
+					data.FacetIPs[cleanURI] = make(map[string]int)
+				}
+				data.FacetIPs[cleanURI][ip]++
+				// Track statuses on facets
+				if data.FacetStatuses[cleanURI] == nil {
+					data.FacetStatuses[cleanURI] = make(map[int]int)
+				}
+				data.FacetStatuses[cleanURI][status]++
 			}
 
 			// Prefix
