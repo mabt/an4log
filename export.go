@@ -8,8 +8,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/oschwald/maxminddb-golang"
 )
 
 // ── JSON export ──
@@ -184,15 +182,10 @@ func ensureProfileData(data *ParseData) {
 
 func resolveASN(ipCounts map[string]int) map[string]string {
 	result := make(map[string]string)
-	dbPath := findASNDB()
-	if dbPath == "" {
+	db := openASNDB()
+	if db == nil {
 		return result
 	}
-	db, err := maxminddb.Open(dbPath)
-	if err != nil {
-		return result
-	}
-	defer db.Close()
 
 	type asnResult struct {
 		ASN uint   `maxminddb:"autonomous_system_number"`

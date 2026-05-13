@@ -199,9 +199,14 @@ func isWhitelisted(ipStr string, nets []net.IPNet) bool {
 	return false
 }
 
-func isPrefixWhitelisted(prefix string, rawWL []string) bool {
-	for _, e := range rawWL {
-		if strings.HasPrefix(e, prefix+".") {
+func isPrefixWhitelisted(prefix string, wlNets []net.IPNet) bool {
+	_, prefixNet, err := net.ParseCIDR(prefix + ".0.0/16")
+	if err != nil {
+		return false
+	}
+	for _, wl := range wlNets {
+		// Networks overlap if either contains the other's first IP
+		if wl.Contains(prefixNet.IP) || prefixNet.Contains(wl.IP) {
 			return true
 		}
 	}

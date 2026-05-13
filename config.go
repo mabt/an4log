@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/oschwald/maxminddb-golang"
 )
 
 var homeDir string
@@ -186,6 +188,52 @@ func findASNDB() string {
 		}
 	}
 	return ""
+}
+
+// ── GeoIP DB cache ──
+
+var cachedCountryDB *maxminddb.Reader
+var cachedASNDB *maxminddb.Reader
+
+func openCountryDB(cfg Cfg) *maxminddb.Reader {
+	if cachedCountryDB != nil {
+		return cachedCountryDB
+	}
+	path := findGeoIPDB(cfgStr(cfg, "geoip_db", ""))
+	if path == "" {
+		return nil
+	}
+	db, err := maxminddb.Open(path)
+	if err != nil {
+		return nil
+	}
+	cachedCountryDB = db
+	return db
+}
+
+func openASNDB() *maxminddb.Reader {
+	if cachedASNDB != nil {
+		return cachedASNDB
+	}
+	path := findASNDB()
+	if path == "" {
+		return nil
+	}
+	db, err := maxminddb.Open(path)
+	if err != nil {
+		return nil
+	}
+	cachedASNDB = db
+	return db
+}
+
+func closeGeoDBs() {
+	if cachedCountryDB != nil {
+		cachedCountryDB.Close()
+	}
+	if cachedASNDB != nil {
+		cachedASNDB.Close()
+	}
 }
 
 func resolveFiles(patterns []string) []string {

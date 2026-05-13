@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/oschwald/maxminddb-golang"
 )
 
 type stringSlice []string
@@ -27,13 +25,14 @@ func main() {
 }
 
 func run() int {
+	defer closeGeoDBs()
 	initColors()
 
 	var files stringSlice
 	var topN int
 	var geoipDB, whitelistFile, configFile string
-	var since, filterIP, groupBy, htmlFile string
-	var jsonFile, csvFile string
+	var since, until, filterIP, filterURI, groupBy, htmlFile string
+	var jsonFile, csvFile, compareFile string
 	var excludeBots, outputIPs, showVersion bool
 	var suspectThreshold, uaThreshold, burstThreshold int
 
@@ -42,7 +41,10 @@ func run() int {
 	flag.StringVar(&geoipDB, "g", "", "Path to GeoLite2-Country.mmdb")
 	flag.StringVar(&whitelistFile, "w", "", "External whitelist file")
 	flag.StringVar(&configFile, "c", "", "Configuration file")
-	flag.StringVar(&since, "since", "", "Filter since: 30m, 2h, 1d, 2026-03-09")
+	flag.StringVar(&since, "since", "", "Filter since: 30m, 2h, 1d, 1w, 2026-03-09")
+	flag.StringVar(&until, "until", "", "Filter until: 30m, 2h, 1d, 1w, 2026-03-09")
+	flag.StringVar(&filterURI, "filter", "", "Filter URIs by prefix (e.g. /api)")
+	flag.StringVar(&compareFile, "vs", "", "Reference file for compare command")
 	flag.StringVar(&filterIP, "ip", "", "Filter / profile an IP")
 	flag.BoolVar(&excludeBots, "exclude-bots", false, "Exclude known bots")
 	flag.BoolVar(&outputIPs, "output-ips", false, "Raw IP output (for piping)")
@@ -66,12 +68,16 @@ Commands:
   ip, ua, uri, prefix, status, heavy, methods, timeline, hour, minute,
   slow, 404, 403, crawlers, suspect, empty-ua, burst, threat, actions,
   sql, xss, traversal, scanners, wp-attack, webshell, post-flood,
-  malformed, storm-404, countries, setup-geoip
+  malformed, storm-404, countries, cred-stuff, compare,
+  log4shell, cmdi, ssrf, setup-geoip
 
 Examples:
   an4log -d /var/log/apache2/access.log
   an4log -d access.log -n 20 status
   an4log -d access.log -since 1h threat
+  an4log -d access.log -since 2d -until 1d summary
+  an4log -d access.log -filter /api ip
+  an4log -d today.log compare -vs yesterday.log
   an4log -d access.log -ip 1.2.3.4
   an4log -d access.log actions -output-ips
   an4log -d access.log -html rapport.html
@@ -100,12 +106,13 @@ Examples:
 		"empty-ua": true, "burst": true, "threat": true, "actions": true, "sql": true,
 		"xss": true, "traversal": true, "scanners": true, "wp-attack": true,
 		"post-flood": true, "countries": true, "setup-geoip": true, "ip-profile": true,
-		"webshell": true, "malformed": true, "storm-404": true,
+		"webshell": true, "malformed": true, "storm-404": true, "compare": true, "cred-stuff": true,
+		"log4shell": true, "cmdi": true, "ssrf": true,
 	}
 	// Late flags: flags that appear after positional args (without -d)
 	lateFlags := map[string]bool{
-		"-since": true, "-ip": true, "-n": true, "-g": true, "-w": true, "-c": true,
-		"-group-by": true, "-html": true, "-json": true, "-csv": true,
+		"-since": true, "-until": true, "-ip": true, "-n": true, "-g": true, "-w": true, "-c": true,
+		"-group-by": true, "-html": true, "-json": true, "-csv": true, "-filter": true, "-vs": true,
 		"-exclude-bots": true, "-output-ips": true,
 		"-suspect-threshold": true, "-ua-threshold": true, "-burst-threshold": true,
 	}
@@ -129,6 +136,12 @@ Examples:
 					switch arg {
 					case "-since":
 						since = val
+					case "-until":
+						until = val
+					case "-filter":
+						filterURI = val
+					case "-vs":
+						compareFile = val
 					case "-ip":
 						filterIP = val
 					case "-n":
@@ -163,6 +176,15 @@ Examples:
 		}
 	}
 	files = append(files, extraFiles...)
+
+	// Validate -n
+	if topN < 0 {
+		topN = 10
+	}
+	if topN > 10000 {
+		warn("Limiting -n to 10000")
+		topN = 10000
+	}
 
 	// Config
 	cfg := loadConfig(configFile)
@@ -246,7 +268,7 @@ Examples:
 
 	// Parse
 	t0 := time.Now()
-	data := parseLog(resolved, cfg, since, filterIP, excludeBots, groupBy)
+	data := parseLog(resolved, cfg, since, until, filterIP, filterURI, excludeBots, groupBy)
 	elapsed := time.Since(t0).Seconds()
 
 	if !outputIPs {
@@ -272,8 +294,14 @@ Examples:
 		if since != "" {
 			fmt.Printf("Filter: %s--since %s%s\n", cYellow, since, cReset)
 		}
+		if until != "" {
+			fmt.Printf("Filter: %s--until %s%s\n", cYellow, until, cReset)
+		}
 		if filterIP != "" {
 			fmt.Printf("IP filter: %s%s%s\n", cYellow, filterIP, cReset)
+		}
+		if filterURI != "" {
+			fmt.Printf("URI filter: %s%s%s\n", cYellow, filterURI, cReset)
 		}
 		if excludeBots {
 			fmt.Printf("Filter: %s--exclude-bots%s\n", cYellow, cReset)
@@ -287,9 +315,8 @@ Examples:
 	geo := make(map[string]string)
 	geoFull := make(map[string][2]string)
 	if command == "actions" || command == "threat" || htmlFile != "" {
-		dbPath := cfgStr(cfg, "geoip_db", "")
 		if htmlFile != "" {
-			geoFull = resolveGeoIPFull(data.IPCounts, dbPath)
+			geoFull = resolveGeoIPFull(data.IPCounts, cfg)
 			for ip, info := range geoFull {
 				geo[ip] = info[0]
 			}
@@ -304,7 +331,7 @@ Examples:
 					ips[ip] = true
 				}
 			}
-			geo = resolveGeoIP(ips, dbPath)
+			geo = resolveGeoIP(ips, cfg)
 		}
 	}
 
@@ -423,6 +450,26 @@ Examples:
 		cmdMalformed(data, cfg)
 	case "storm-404":
 		cmdStorm404(data, cfg)
+	case "cred-stuff":
+		cmdCredStuff(data, cfg)
+	case "log4shell":
+		cmdThreatType(data, cfg, "LOG4SHELL", "Log4Shell/JNDI injection")
+	case "cmdi":
+		cmdThreatType(data, cfg, "CMDI", "Command injection")
+	case "ssrf":
+		cmdThreatType(data, cfg, "SSRF", "SSRF attempts")
+	case "compare":
+		if compareFile == "" {
+			fmt.Fprintf(os.Stderr, "%scompare requires --vs <file>%s\n", cRed, cReset)
+			return 2
+		}
+		refFiles := resolveFiles([]string{compareFile})
+		if len(refFiles) == 0 {
+			fmt.Fprintf(os.Stderr, "%sNo reference files found: %s%s\n", cRed, compareFile, cReset)
+			return 2
+		}
+		refData := parseLog(refFiles, cfg, since, until, "", filterURI, excludeBots, groupBy)
+		cmdCompare(data, refData, cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "%sUnknown command: %s%s\n", cRed, command, cReset)
 		flag.Usage()
@@ -437,16 +484,12 @@ Examples:
 
 // ── GeoIP helpers ──
 
-func resolveGeoIP(ips map[string]bool, dbPath string) map[string]string {
+func resolveGeoIP(ips map[string]bool, cfg Cfg) map[string]string {
 	result := make(map[string]string)
-	if dbPath == "" {
+	db := openCountryDB(cfg)
+	if db == nil {
 		return result
 	}
-	db, err := maxminddb.Open(dbPath)
-	if err != nil {
-		return result
-	}
-	defer db.Close()
 
 	type geoResult struct {
 		Country struct {
@@ -469,16 +512,12 @@ func resolveGeoIP(ips map[string]bool, dbPath string) map[string]string {
 	return result
 }
 
-func resolveGeoIPFull(ipCounts map[string]int, dbPath string) map[string][2]string {
+func resolveGeoIPFull(ipCounts map[string]int, cfg Cfg) map[string][2]string {
 	result := make(map[string][2]string)
-	if dbPath == "" {
+	db := openCountryDB(cfg)
+	if db == nil {
 		return result
 	}
-	db, err := maxminddb.Open(dbPath)
-	if err != nil {
-		return result
-	}
-	defer db.Close()
 
 	type geoResult struct {
 		Country struct {

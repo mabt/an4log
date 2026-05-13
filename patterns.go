@@ -13,6 +13,12 @@ var threatPatterns = []ThreatPattern{
 		[]string{"wp-", "xmlrpc", "eval-stdin"}},
 	{"SENSITIVE", regexp.MustCompile(`(?i)(/\.env($|[.\?])|/\.git/(config|HEAD|index|objects|refs)|\.htaccess|/\.svn/|/\.hg/|phpinfo\.php|server-status|server-info)`),
 		[]string{"/.env", ".git/", ".htaccess", ".svn/", ".hg/", "phpinfo", "server-status", "server-info"}},
+	{"LOG4SHELL", regexp.MustCompile(`(?i)(\$\{jndi:|%24%7bjndi|%2524%257bjndi|\$\{lower:|\$\{upper:|\$\{env:)`),
+		[]string{"${jndi", "%24%7bjndi", "%2524%257b", "${lower:", "${upper:", "${env:"}},
+	{"CMDI", regexp.MustCompile(`(?i)(;\s*(cat|ls|id|whoami|wget|curl|nc|bash|sh|python|perl|php|uname|ping|sleep|echo)\b|%3b\s*(cat|id|whoami|wget|curl|bash))`),
+		[]string{";cat", ";ls", ";id", ";who", ";wget", ";curl", ";nc", ";bash", ";sh", ";py", ";php", ";sleep", ";echo", "%3bcat", "%3bid", "%3bwho", "%3bwget", "%3bcurl", "%3bbash"}},
+	{"SSRF", regexp.MustCompile(`(?i)(https?://(127\.0\.0\.1|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.169\.254|0\.0\.0\.0|localhost)[:/]|/latest/meta-data|/metadata/v\d)`),
+		[]string{"127.0.0.1", "169.254.169.254", "192.168.", "0.0.0.0", "localhost", "/latest/meta-data", "/metadata/v"}},
 }
 
 var scannerRE = regexp.MustCompile(`(?i)(nikto|sqlmap|nmap|masscan|dirbuster|gobuster|wfuzz|nuclei|acunetix|nessus|openvas|burpsuite|zap|w3af|whatweb|wpscan)`)
@@ -45,6 +51,10 @@ var webshellHints = []string{"txets.", "schallfuns.", "postnews.", "alfashell.",
 // Matches: /carrelagesignature.com/wp-content/..., /www.google.com/..., /cdn.example.com/...
 var malformedURLRE = regexp.MustCompile(`^/(?:[a-z0-9-]+\.)+(?:com|net|org|io|fr|de|eu|co|uk|info|me|dev|app|cloud|site|online|xyz)/`)
 
+// Login URI pattern for credential stuffing detection
+var loginURIRE = regexp.MustCompile(`(?i)(/login|/signin|/auth/|/connect|/wp-login|/admin.*login|/user.*login|/account.*login)`)
+
 var threatScores = map[string]int{
 	"SQL": 10, "XSS": 10, "TRAVERSAL": 8, "SCAN": 8, "WP": 5, "SENSITIVE": 5, "WEBSHELL": 8,
+	"LOG4SHELL": 10, "CMDI": 10, "SSRF": 10,
 }

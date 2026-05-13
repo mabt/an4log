@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/oschwald/maxminddb-golang"
 )
 
 func cmdIP(data *ParseData, cfg Cfg) {
@@ -156,46 +154,16 @@ func cmdEmptyUA(data *ParseData, cfg Cfg) {
 	showTop(data.EmptyUAIPs, cfgInt(cfg, "top_n", 10), total, 42)
 }
 
-func cmdSQL(data *ParseData, cfg Cfg) {
-	header("SQL injection attempts")
-	m := data.ThreatIPs["SQL"]
-	if m == nil {
-		m = make(map[string]int)
-	}
-	showTop(m, cfgInt(cfg, "top_n", 10), 0, 0)
-}
-
-func cmdXSS(data *ParseData, cfg Cfg) {
-	header("XSS attempts")
-	m := data.ThreatIPs["XSS"]
-	if m == nil {
-		m = make(map[string]int)
-	}
-	showTop(m, cfgInt(cfg, "top_n", 10), 0, 0)
-}
-
-func cmdTraversal(data *ParseData, cfg Cfg) {
-	header("Path traversal attempts")
-	m := data.ThreatIPs["TRAVERSAL"]
-	if m == nil {
-		m = make(map[string]int)
-	}
-	showTop(m, cfgInt(cfg, "top_n", 10), 0, 0)
-}
+func cmdSQL(data *ParseData, cfg Cfg)       { cmdThreatType(data, cfg, "SQL", "SQL injection attempts") }
+func cmdXSS(data *ParseData, cfg Cfg)       { cmdThreatType(data, cfg, "XSS", "XSS attempts") }
+func cmdTraversal(data *ParseData, cfg Cfg)  { cmdThreatType(data, cfg, "TRAVERSAL", "Path traversal attempts") }
 
 func cmdScanners(data *ParseData, cfg Cfg) {
 	header("Scanner detection")
 	showTop(data.ScannerUAs, cfgInt(cfg, "top_n", 10), 0, 0)
 }
 
-func cmdWPAttack(data *ParseData, cfg Cfg) {
-	header("WordPress attacks")
-	m := data.ThreatIPs["WP"]
-	if m == nil {
-		m = make(map[string]int)
-	}
-	showTop(m, cfgInt(cfg, "top_n", 10), 0, 0)
-}
+func cmdWPAttack(data *ParseData, cfg Cfg) { cmdThreatType(data, cfg, "WP", "WordPress attacks") }
 
 func cmdPostFlood(data *ParseData, cfg Cfg) {
 	thresh := cfgInt(cfg, "post_flood_threshold", 200)
@@ -343,6 +311,7 @@ func cmdThreat(data *ParseData, cfg Cfg) {
 	header("Combined threat view")
 	labels := []struct{ key, label string }{
 		{"SQL", "SQL Injection"}, {"XSS", "XSS"}, {"TRAVERSAL", "Path Traversal"},
+		{"LOG4SHELL", "Log4Shell/JNDI"}, {"CMDI", "Command Injection"}, {"SSRF", "SSRF"},
 		{"SCAN", "Scanners"}, {"WEBSHELL", "Webshell scans"}, {"WP", "WordPress"}, {"SENSITIVE", "Sensitive files"},
 	}
 	hasThreat := false
@@ -473,18 +442,12 @@ func cmdClassify(data *ParseData, cfg Cfg) {
 func cmdCountries(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
 	header(fmt.Sprintf("Top %d countries (GeoIP)", n))
-	dbPath := findGeoIPDB(cfgStr(cfg, "geoip_db", ""))
-	if dbPath == "" {
+	db := openCountryDB(cfg)
+	if db == nil {
 		warn("GeoIP database not found")
 		fmt.Println("    an4log setup-geoip")
 		return
 	}
-	db, err := maxminddb.Open(dbPath)
-	if err != nil {
-		warn(fmt.Sprintf("Error opening GeoIP: %v", err))
-		return
-	}
-	defer db.Close()
 
 	type geoResult struct {
 		Country struct {
@@ -809,7 +772,7 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 		fmt.Printf("  %slegitimate CDN/cloud (Google, Cloudflare, OVH...).%s\n", cYellow, cReset)
 		fmt.Printf("\n  %siptables commands:%s\n\n", cBold, cReset)
 		for _, ph := range suspectPrefixes {
-			if isPrefixWhitelisted(ph.prefix, wlRaw) {
+			if isPrefixWhitelisted(ph.prefix, wlNets) {
 				fmt.Printf("  %s# SKIP %s.0.0/16 (whitelist) - %d hits%s\n", cCyan, ph.prefix, ph.hits, cReset)
 				continue
 			}
@@ -843,6 +806,35 @@ func cmdActions(data *ParseData, cfg Cfg, geo map[string]string, wlRaw []string,
 	fmt.Println("  # Save rules")
 	fmt.Println("  # Debian/Ubuntu : iptables-save > /etc/iptables/rules.v4")
 	fmt.Println("  # RHEL/CentOS   : service iptables save")
+
+	// ipset batch output
+	var allBanIPs []string
+	seen := make(map[string]bool)
+	for _, s := range attackIPs {
+		if !isWhitelisted(s.ip, wlNets) && !isProtectedIP(s.ip, data) && !seen[s.ip] {
+			allBanIPs = append(allBanIPs, s.ip)
+			seen[s.ip] = true
+		}
+	}
+	for _, ip := range suspectIPs {
+		if !isWhitelisted(ip, wlNets) && !isProtectedIP(ip, data) && !seen[ip] {
+			allBanIPs = append(allBanIPs, ip)
+			seen[ip] = true
+		}
+	}
+
+	if len(allBanIPs) > 0 {
+		header("ipset batch (mass ban)")
+		fmt.Printf("  %sMore efficient than individual iptables rules%s\n\n", cCyan, cReset)
+		fmt.Printf("  create an4log_blacklist hash:ip hashsize 4096 maxelem %d\n", len(allBanIPs)+100)
+		fmt.Println("  flush an4log_blacklist")
+		for _, ip := range allBanIPs {
+			fmt.Printf("  add an4log_blacklist %s\n", ip)
+		}
+		fmt.Printf("\n  %s# Apply:%s\n", cBold, cReset)
+		fmt.Println("  #   ipset restore < ipset-rules.txt")
+		fmt.Println("  #   iptables -A INPUT -m set --match-set an4log_blacklist src -j DROP")
+	}
 
 	header("Recommended alternatives")
 	fmt.Printf("  %sfail2ban%s (automatic temporary ban):\n", cBold, cReset)
@@ -918,6 +910,12 @@ func percentile(sorted []int, p float64) int {
 		return 0
 	}
 	idx := int(float64(len(sorted)-1) * p)
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
 	return sorted[idx]
 }
 
@@ -984,18 +982,12 @@ func cmdResponseTime(data *ParseData, cfg Cfg) {
 func cmdASN(data *ParseData, cfg Cfg) {
 	n := cfgInt(cfg, "top_n", 10)
 	header(fmt.Sprintf("Top %d networks (ASN)", n))
-	dbPath := findASNDB()
-	if dbPath == "" {
+	db := openASNDB()
+	if db == nil {
 		warn("GeoLite2-ASN.mmdb not found")
 		fmt.Println("    an4log setup-geoip  (also downloads ASN database)")
 		return
 	}
-	db, err := maxminddb.Open(dbPath)
-	if err != nil {
-		warn(fmt.Sprintf("Error opening ASN: %v", err))
-		return
-	}
-	defer db.Close()
 
 	type asnResult struct {
 		ASN  uint   `maxminddb:"autonomous_system_number"`
@@ -1034,6 +1026,32 @@ func cmdASN(data *ParseData, cfg Cfg) {
 		fmt.Printf("  %10s  %s  %6s  %s  %s (%s)\n",
 			fmtComma(kv.Val), pct, fmtComma(ips), bar, org, asn)
 	}
+}
+
+func cmdThreatType(data *ParseData, cfg Cfg, key, label string) {
+	header(label)
+	m := data.ThreatIPs[key]
+	if m == nil || len(m) == 0 {
+		fmt.Printf("  %sNo %s detected%s\n", cGreen, label, cReset)
+		return
+	}
+	showTop(m, cfgInt(cfg, "top_n", 10), 0, 42)
+}
+
+func cmdCredStuff(data *ParseData, cfg Cfg) {
+	thresh := cfgInt(cfg, "cred_stuff_threshold", 10)
+	header(fmt.Sprintf("Credential stuffing (> %d login attempts)", thresh))
+	found := make(map[string]int)
+	for ip, c := range data.LoginAttempts {
+		if c > thresh {
+			found[ip] = c
+		}
+	}
+	if len(found) == 0 {
+		fmt.Printf("  %sNo credential stuffing detected%s\n", cGreen, cReset)
+		return
+	}
+	showTop(found, cfgInt(cfg, "top_n", 10), 0, 42)
 }
 
 func cmdWebshell(data *ParseData, cfg Cfg) {
@@ -1231,6 +1249,9 @@ func cmdAll(ctx *CmdCtx) {
 	if len(data.Storm404Minutes) > 0 {
 		cmdStorm404(data, cfg)
 	}
+	if len(data.LoginAttempts) > 0 {
+		cmdCredStuff(data, cfg)
+	}
 
 	// Security sections: compact empty ones
 	type secCmd struct {
@@ -1245,6 +1266,9 @@ func cmdAll(ctx *CmdCtx) {
 		{cmdXSS, "XSS", len(data.ThreatIPs["XSS"]) == 0},
 		{cmdTraversal, "Traversal", len(data.ThreatIPs["TRAVERSAL"]) == 0},
 		{cmdWPAttack, "WordPress", len(data.ThreatIPs["WP"]) == 0},
+		{func(d *ParseData, c Cfg) { cmdThreatType(d, c, "LOG4SHELL", "Log4Shell") }, "Log4Shell", len(data.ThreatIPs["LOG4SHELL"]) == 0},
+		{func(d *ParseData, c Cfg) { cmdThreatType(d, c, "CMDI", "CMDI") }, "CMDI", len(data.ThreatIPs["CMDI"]) == 0},
+		{func(d *ParseData, c Cfg) { cmdThreatType(d, c, "SSRF", "SSRF") }, "SSRF", len(data.ThreatIPs["SSRF"]) == 0},
 	}
 
 	var emptyLabels []string
@@ -1285,6 +1309,121 @@ func monthSortKey(k string) time.Time {
 		return time.Time{}
 	}
 	return t
+}
+
+func cmdCompare(current, reference *ParseData, cfg Cfg) {
+	header("Period comparison")
+
+	type metric struct {
+		label    string
+		cur, ref int
+	}
+
+	var curBytes, refBytes int64
+	for _, b := range current.IPBytes {
+		curBytes += b
+	}
+	for _, b := range reference.IPBytes {
+		refBytes += b
+	}
+	curThreats, refThreats := 0, 0
+	for _, c := range current.ThreatCounts {
+		curThreats += c
+	}
+	for _, c := range reference.ThreatCounts {
+		refThreats += c
+	}
+	cur4xx, ref4xx, cur5xx, ref5xx := 0, 0, 0, 0
+	for s, c := range current.StatusCounts {
+		if s >= 400 && s < 500 {
+			cur4xx += c
+		} else if s >= 500 {
+			cur5xx += c
+		}
+	}
+	for s, c := range reference.StatusCounts {
+		if s >= 400 && s < 500 {
+			ref4xx += c
+		} else if s >= 500 {
+			ref5xx += c
+		}
+	}
+
+	metrics := []metric{
+		{"Requests", current.Total, reference.Total},
+		{"Unique IPs", len(current.IPCounts), len(reference.IPCounts)},
+		{"Bots", current.BotCount, reference.BotCount},
+		{"4xx errors", cur4xx, ref4xx},
+		{"5xx errors", cur5xx, ref5xx},
+		{"Threats", curThreats, refThreats},
+	}
+
+	fmt.Printf("  %-20s  %12s  %12s  %10s\n", "", "Current", "Reference", "Delta")
+	fmt.Printf("  %s\n", strings.Repeat("-", 60))
+
+	for _, m := range metrics {
+		delta := ""
+		if m.ref > 0 {
+			pct := float64(m.cur-m.ref) / float64(m.ref) * 100
+			sign := "+"
+			if pct < 0 {
+				sign = ""
+			}
+			delta = fmt.Sprintf("%s%.1f%%", sign, pct)
+		} else if m.cur > 0 {
+			delta = "new"
+		}
+		fmt.Printf("  %-20s  %12s  %12s  %10s\n", m.label, fmtComma(m.cur), fmtComma(m.ref), delta)
+	}
+
+	// Volume
+	fmt.Printf("  %-20s  %12s  %12s\n", "Volume", fmtSize(curBytes), fmtSize(refBytes))
+
+	// New / gone IPs
+	newIPs, goneIPs := 0, 0
+	for ip := range current.IPCounts {
+		if _, ok := reference.IPCounts[ip]; !ok {
+			newIPs++
+		}
+	}
+	for ip := range reference.IPCounts {
+		if _, ok := current.IPCounts[ip]; !ok {
+			goneIPs++
+		}
+	}
+	fmt.Printf("\n  New IPs: %s%s%s | Gone IPs: %s%s%s\n", cYellow, fmtComma(newIPs), cReset, cCyan, fmtComma(goneIPs), cReset)
+
+	// New threats
+	newThreatIPs := make(map[string][]string)
+	for ip, types := range current.IPThreats {
+		if _, ok := reference.IPThreats[ip]; !ok {
+			newThreatIPs[ip] = sortedKeys(types)
+		}
+	}
+	if len(newThreatIPs) > 0 {
+		n := cfgInt(cfg, "top_n", 10)
+		fmt.Printf("\n  %sNew threat IPs (not in reference):%s\n", cRed, cReset)
+		count := 0
+		for ip, types := range newThreatIPs {
+			if count >= n {
+				fmt.Printf("  ... +%d more\n", len(newThreatIPs)-n)
+				break
+			}
+			fmt.Printf("    %-16s  [%s]\n", ip, strings.Join(types, ","))
+			count++
+		}
+	}
+
+	// Gone threats
+	goneThreatIPs := 0
+	for ip := range reference.IPThreats {
+		if _, ok := current.IPThreats[ip]; !ok {
+			goneThreatIPs++
+		}
+	}
+	if goneThreatIPs > 0 {
+		fmt.Printf("  %s%d threat IP(s) no longer active%s\n", cGreen, goneThreatIPs, cReset)
+	}
 }
 
 func aggregateMonths(dayStats map[string]*DayStat) map[string]*DayStat {

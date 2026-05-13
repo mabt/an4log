@@ -50,6 +50,8 @@ func computeCutoff(sinceStr string) (time.Time, bool) {
 				return now.Add(-time.Duration(n) * time.Hour), true
 			case 'd':
 				return now.AddDate(0, 0, -n), true
+			case 'w':
+				return now.AddDate(0, 0, -n*7), true
 			}
 		}
 	}
@@ -113,10 +115,11 @@ func newParseData(groupBy string) *ParseData {
 		FacetVariants:   make(map[string]int),
 		FacetIPs:        make(map[string]map[string]int),
 		FacetStatuses:   make(map[string]map[int]int),
+		LoginAttempts:   make(map[string]int),
 	}
 }
 
-func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool, groupBy string) *ParseData {
+func parseLog(files []string, cfg Cfg, since, until, filterIP, filterURI string, excludeBots bool, groupBy string) *ParseData {
 	data := newParseData(groupBy)
 	profiling := filterIP != ""
 
@@ -124,6 +127,11 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 	var hasCutoff bool
 	if since != "" {
 		cutoff, hasCutoff = computeCutoff(since)
+	}
+	var upperCutoff time.Time
+	var hasUpperCutoff bool
+	if until != "" {
+		upperCutoff, hasUpperCutoff = computeCutoff(until)
 	}
 
 	uaCache := make(map[string]*UAInfo)
@@ -205,9 +213,15 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 			if filterIP != "" && ip != filterIP {
 				continue
 			}
+			if filterURI != "" && !strings.HasPrefix(uri, filterURI) {
+				continue
+			}
 
 			ts, tsOk := parseTimestamp(tsStr)
 			if hasCutoff && tsOk && ts.Before(cutoff) {
+				continue
+			}
+			if hasUpperCutoff && tsOk && ts.After(upperCutoff) {
 				continue
 			}
 
@@ -368,6 +382,9 @@ func parseLog(files []string, cfg Cfg, since, filterIP string, excludeBots bool,
 			}
 			if method == "POST" {
 				data.PostIPs[ip]++
+				if loginURIRE.MatchString(uri) {
+					data.LoginAttempts[ip]++
+				}
 			}
 			if ua == "-" || ua == "" {
 				data.EmptyUAIPs[ip]++

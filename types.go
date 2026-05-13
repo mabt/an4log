@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var version = "3.3.0"
+var version = "3.5.0"
 
 // ── Data structures ──
 
@@ -63,6 +63,7 @@ type ParseData struct {
 	FacetVariants   map[string]int    // base URI -> count of unique query strings
 	FacetIPs        map[string]map[string]int // base URI -> ip -> count
 	FacetStatuses   map[string]map[int]int    // base URI -> status -> count
+	LoginAttempts   map[string]int            // ip -> count of POST to login URIs
 }
 
 type DayStat struct {
