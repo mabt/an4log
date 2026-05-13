@@ -1,4 +1,4 @@
-# an4log v3.2.0
+# an4log v3.5.0
 
 Apache/Nginx log analyzer. Single static binary, zero dependencies, instant deployment.
 
@@ -48,6 +48,18 @@ an4log -d access.log -n 20 status
 
 # Threats from the last hour
 an4log -d access.log -since 1h threat
+
+# Last week only
+an4log -d access.log -since 1w summary
+
+# Time window: between 2 days ago and 1 day ago (= yesterday)
+an4log -d access.log -since 2d -until 1d summary
+
+# Filter by URI prefix
+an4log -d access.log -filter /api ip
+
+# Compare two log files
+an4log -d today.log compare -vs yesterday.log
 
 # Profile an IP
 an4log -ip 1.2.3.4 -d access.log
@@ -121,15 +133,20 @@ an4log -d access.log -exclude-bots
 | Command | Description |
 |---------|-------------|
 | `threat` | Combined view of all threats |
-| `actions` | iptables / fail2ban / ipset suggestions (score >= 10) |
+| `actions` | iptables / fail2ban / ipset suggestions (score >= 10) + ipset batch |
 | `sql` | SQL injection attempts |
 | `xss` | XSS attempts |
 | `traversal` | Path traversal attempts (double `../` or sensitive targets) |
+| `log4shell` | Log4Shell / JNDI injection attempts |
+| `cmdi` | Command injection attempts (`;cat`, `;wget`...) |
+| `ssrf` | SSRF attempts (internal IPs, cloud metadata) |
 | `scanners` | Scanner detection (nikto, sqlmap...) |
 | `wp-attack` | WordPress attacks (excludes wp-cron) |
 | `webshell` | Webshell scan detection (txets.php, c99.php, r57.php...) |
+| `cred-stuff` | Credential stuffing (POST to login URIs) |
 | `malformed` | Malformed URLs (domain-in-path, e.g. `/example.com/wp-content/...`) |
 | `storm-404` | 404 storm detection (burst of 404s per minute) |
+| `compare` | Compare current vs reference log (use with `--vs`) |
 
 ## Options
 
@@ -140,7 +157,10 @@ an4log -d access.log -exclude-bots
 | `-g PATH` | Path to GeoLite2-Country.mmdb |
 | `-w FILE` | External whitelist file |
 | `-c FILE` | Configuration file |
-| `-since` | Filter since: `30m`, `2h`, `1d`, `2026-03-09` |
+| `-since` | Filter since: `30m`, `2h`, `1d`, `1w`, `2026-03-09` |
+| `-until` | Filter until: `30m`, `2h`, `1d`, `1w`, `2026-03-09` |
+| `-filter PREFIX` | Filter URIs by prefix (e.g. `/api`) |
+| `-vs FILE` | Reference file for `compare` command |
 | `-ip` | Filter / profile an IP |
 | `-group-by` | Group by `day` or `month` |
 | `-html FILE` | Generate interactive HTML report |
@@ -166,11 +186,12 @@ The HTML report is self-contained (inline CSS + JS) and includes:
 
 ## Detection
 
-- **Threats**: SQL injection, XSS, path traversal (double `../` or sensitive targets), WordPress (excludes wp-cron), sensitive files (`/.env`, `.git/HEAD`, `.htaccess`...)
+- **Threats**: SQL injection, XSS, path traversal, Log4Shell/JNDI, command injection, SSRF, WordPress (excludes wp-cron), sensitive files (`/.env`, `.git/HEAD`, `.htaccess`...)
 - **Webshell scans**: txets.php, c99.php, r57.php, alfashell.php, adminer.php...
 - **Malformed URLs**: domain-in-path patterns (`/example.com/wp-content/...`) typically caused by bots stripping `https://`
 - **404 storms**: burst of 404 errors per minute that can exhaust PHP-FPM workers
 - **Scanners**: nikto, sqlmap, nmap, nuclei, wpscan...
+- **Credential stuffing**: POST flood to login URIs
 - **Ban threshold**: only IPs with score >= 10 are suggested in `actions` (avoids false positives on isolated hits)
 - **UA classification**: payment (Lyra, PayPal, Stripe...), monitoring (Uptime-Kuma, Sansec...), legitimate bots (Google, Bing...), SEO, AI
 - **Protected IPs**: payment and monitoring IPs are never suggested for banning
@@ -199,7 +220,8 @@ geoip_db = /usr/share/GeoIP/GeoLite2-Country.mmdb
 
 ## Notes
 
-- Static binary ~10 MB, no runtime dependencies
+- Static binary ~7 MB, no runtime dependencies
+- 80+ unit tests (`go test ./...`)
 - Reads from stdin (`-d -`) for piping from `tail`, `zcat`, etc.
 - Auto-detects vhost format (vhost:port IP ... vs IP ...)
 - Response time: add `%D` (Apache) or `$request_time` (Nginx) at end of log format
